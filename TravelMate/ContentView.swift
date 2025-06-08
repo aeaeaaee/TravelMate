@@ -33,23 +33,33 @@ struct ContentView: View {
     // Holds the currently selected location to display a pin on the map.
     @State private var selectedPlace: IdentifiablePlace?
 
+    //<--START-->
+    // Holds the calculated route to be drawn on the map.
+    @State private var route: MKPolyline?
+    //<--END-->
+
     var body: some View {
         ZStack {
-            // Layer 1: The Map background, now using the modern position-based initializer.
-            // This fixes the build error by correctly supporting the content closure.
+            // Layer 1: The Map background, now with a pin and route.
             Map(position: $position) {
                 // This adds the blue dot for the user's current location.
                 UserAnnotation()
                 
-                //<--START-->
                 // If a place has been selected, show a larger, custom red marker for it.
                 if let place = selectedPlace {
                     Annotation(place.mapItem.name ?? "Location", coordinate: place.mapItem.placemark.coordinate) {
                         Image(systemName: "mappin")
-                            .font(.system(size: 60)) // Increase the size of the pin
+                            .font(.system(size: 40))
                             .foregroundColor(.red)
                             .shadow(radius: 2)
                     }
+                }
+                
+                //<--START-->
+                // If a route has been calculated, draw it on the map.
+                if let route = route {
+                    MapPolyline(route)
+                        .stroke(.blue, lineWidth: 5)
                 }
                 //<--END-->
             }
@@ -65,7 +75,6 @@ struct ContentView: View {
                             .foregroundColor(.primary)
                         
                         TextField("Search for a destination", text: $searchText)
-                            // When text changes, update the search service's query.
                             .onChange(of: searchText) {
                                 searchService.queryFragment = searchText
                             }
@@ -74,7 +83,7 @@ struct ContentView: View {
 
                     // The Dropdown List for Search Results, now showing distance.
                     if !searchService.searchResults.isEmpty && !searchText.isEmpty {
-                        Divider() // Separator between search bar and results.
+                        Divider()
                         
                         ForEach(searchService.searchResults) { result in
                             VStack(alignment: .leading, spacing: 4) {
@@ -82,7 +91,6 @@ struct ContentView: View {
                                     .font(.headline)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 
-                                // A horizontal stack to hold the subtitle and the distance.
                                 HStack {
                                     Text(result.completion.subtitle)
                                         .font(.subheadline)
@@ -95,13 +103,11 @@ struct ContentView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .padding()
-                            .contentShape(Rectangle()) // Makes the whole area tappable.
+                            .contentShape(Rectangle())
                             .onTapGesture {
-                                // Handle the user's selection.
                                 handleSelection(result.completion)
                             }
                             
-                            // Add a divider unless it's the last item.
                             if result != searchService.searchResults.last {
                                 Divider()
                             }
@@ -117,7 +123,6 @@ struct ContentView: View {
                 Spacer()
             }
             .onChange(of: locationManager.location) {
-                // Update the search service with the user's current location.
                 searchService.currentLocation = locationManager.location
             }
 
@@ -131,7 +136,6 @@ struct ContentView: View {
                         // Geolocation Button
                         Button(action: {
                             if let userLocation = locationManager.location {
-                                // Update the camera position to center on the user.
                                 let userRegion = MKCoordinateRegion(
                                     center: userLocation.coordinate,
                                     span: position.region?.span ?? MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
@@ -146,9 +150,26 @@ struct ContentView: View {
                                 .padding(10)
                                 .frame(width: 44, height: 44)
                         }
-                        .background(.thinMaterial)
+                        .background(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .shadow(radius: 4)
+
+                        //<--START-->
+                        // Route calculation button
+                        Button(action: {
+                            calculateRoute()
+                        }) {
+                            Image(systemName: "arrow.swap")
+                                .font(.title2)
+                                .padding(5)
+                                .frame(width: 44, height: 44)
+                        }
+                        .background(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .shadow(radius: 4)
+                        // The button is disabled if there's no destination or user location.
+                        .disabled(selectedPlace == nil || locationManager.location == nil)
+                        //<--END-->
 
                         // Combined Zoom In/Out Buttons
                         VStack(spacing: 0) {
@@ -166,7 +187,7 @@ struct ContentView: View {
                                     .frame(width: 44, height: 44)
                             }
                         }
-                        .background(.thinMaterial)
+                        .background(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .shadow(radius: 4)
                     }
@@ -189,6 +210,11 @@ struct ContentView: View {
             }
             
             DispatchQueue.main.async {
+                //<--START-->
+                // Clear any previous route before setting a new destination.
+                self.route = nil
+                //<--END-->
+                
                 // Set the selected place to show a pin on the map.
                 self.selectedPlace = IdentifiablePlace(mapItem: mapItem)
                 
@@ -206,6 +232,46 @@ struct ContentView: View {
             }
         }
     }
+    
+    //<--START-->
+    // Calculates the route between the user's location and the selected destination.
+    private func calculateRoute() {
+        // Ensure we have both a source and a destination.
+        guard let sourceLocation = locationManager.location, let destination = selectedPlace else {
+            print("Source or destination is missing.")
+            return
+        }
+        
+        // Create a direction request.
+        let request = MKDirections.Request()
+        request.source = MKMapItem(placemark: MKPlacemark(coordinate: sourceLocation.coordinate))
+        request.destination = destination.mapItem
+        request.transportType = .automobile // Can be changed to .walking or .transit
+
+        // Perform the direction calculation.
+        let directions = MKDirections(request: request)
+        directions.calculate { response, error in
+            guard let routeResponse = response?.routes.first else {
+                if let error = error {
+                    print("Route calculation error: \(error.localizedDescription)")
+                }
+                return
+            }
+            
+            // Update the state with the new route polyline.
+            DispatchQueue.main.async {
+                self.route = routeResponse.polyline
+                
+                // Adjust the map to show the entire route.
+                let rect = routeResponse.polyline.boundingMapRect
+                let region = MKCoordinateRegion(rect)
+                withAnimation {
+                    self.position = .region(region)
+                }
+            }
+        }
+    }
+    //<--END-->
     
     // Refactored zoom logic to work with MapCameraPosition.
     private func zoom(in zoomIn: Bool) {
