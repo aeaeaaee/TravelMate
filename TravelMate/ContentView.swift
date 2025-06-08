@@ -1,33 +1,60 @@
 import SwiftUI
 import MapKit
 
+// A helper struct to make our map item identifiable for the Map view.
+struct IdentifiablePlace: Identifiable {
+    let id: UUID
+    let mapItem: MKMapItem
+    
+    init(mapItem: MKMapItem) {
+        self.id = UUID()
+        self.mapItem = mapItem
+    }
+}
+
 // Main View for the application
 struct ContentView: View {
     // Manages location services and updates.
     @StateObject private var locationManager = LocationManager()
     
-    //<--START-->
     // Service to handle location search completions and distance calculation.
     @StateObject private var searchService = LocationSearchService()
-    //<--END-->
     
     // Holds the text from the search bar.
     @State private var searchText = ""
     
-    // Defines the visible region of the map.
-    @State private var region = MKCoordinateRegion(
+    // Defines the map's camera position. This is the modern replacement for MKCoordinateRegion.
+    @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
         // Defaulting to Hong Kong as the initial location.
         center: CLLocationCoordinate2D(latitude: 22.3193, longitude: 114.1694),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
-    )
+    ))
+
+    // Holds the currently selected location to display a pin on the map.
+    @State private var selectedPlace: IdentifiablePlace?
 
     var body: some View {
         ZStack {
-            // Layer 1: The Map background
-            Map(coordinateRegion: $region, showsUserLocation: true)
-                .ignoresSafeArea()
+            // Layer 1: The Map background, now using the modern position-based initializer.
+            // This fixes the build error by correctly supporting the content closure.
+            Map(position: $position) {
+                // This adds the blue dot for the user's current location.
+                UserAnnotation()
+                
+                //<--START-->
+                // If a place has been selected, show a larger, custom red marker for it.
+                if let place = selectedPlace {
+                    Annotation(place.mapItem.name ?? "Location", coordinate: place.mapItem.placemark.coordinate) {
+                        Image(systemName: "mappin")
+                            .font(.system(size: 60)) // Increase the size of the pin
+                            .foregroundColor(.red)
+                            .shadow(radius: 2)
+                    }
+                }
+                //<--END-->
+            }
+            .ignoresSafeArea()
 
-            //<--START-->
             // Layer 2: The UI elements (Search and Controls)
             VStack(spacing: 0) {
                 // A single container for the search bar and its results.
@@ -93,7 +120,6 @@ struct ContentView: View {
                 // Update the search service with the user's current location.
                 searchService.currentLocation = locationManager.location
             }
-            //<--END-->
 
             // Layer 3: The Map Controls
             VStack {
@@ -105,8 +131,13 @@ struct ContentView: View {
                         // Geolocation Button
                         Button(action: {
                             if let userLocation = locationManager.location {
+                                // Update the camera position to center on the user.
+                                let userRegion = MKCoordinateRegion(
+                                    center: userLocation.coordinate,
+                                    span: position.region?.span ?? MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                                )
                                 withAnimation {
-                                    region.center = userLocation.coordinate
+                                    position = .region(userRegion)
                                 }
                             }
                         }) {
@@ -145,7 +176,6 @@ struct ContentView: View {
         }
     }
     
-    //<--START-->
     // Handles tapping on a search result.
     private func handleSelection(_ completion: MKLocalSearchCompletion) {
         let searchRequest = MKLocalSearch.Request(completion: completion)
@@ -159,10 +189,17 @@ struct ContentView: View {
             }
             
             DispatchQueue.main.async {
-                self.searchText = completion.title
+                // Set the selected place to show a pin on the map.
+                self.selectedPlace = IdentifiablePlace(mapItem: mapItem)
+                
+                // When a location is selected, update the camera position.
                 if let coordinate = mapItem.placemark.location?.coordinate {
-                    self.region = MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
+                    let newRegion = MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
+                    withAnimation {
+                        self.position = .region(newRegion)
+                    }
                 }
+                
                 // Clear search text and completions to hide the list.
                 self.searchText = ""
                 self.searchService.searchResults = []
@@ -170,15 +207,21 @@ struct ContentView: View {
         }
     }
     
-    // Refactored zoom logic.
+    // Refactored zoom logic to work with MapCameraPosition.
     private func zoom(in zoomIn: Bool) {
+        guard let currentRegion = position.region else { return }
+        
+        let factor = zoomIn ? 0.5 : 2
+        let newSpan = MKCoordinateSpan(
+            latitudeDelta: currentRegion.span.latitudeDelta * factor,
+            longitudeDelta: currentRegion.span.longitudeDelta * factor
+        )
+        let newRegion = MKCoordinateRegion(center: currentRegion.center, span: newSpan)
+        
         withAnimation {
-            let factor = zoomIn ? 0.5 : 2
-            region.span.latitudeDelta *= factor
-            region.span.longitudeDelta *= factor
+            position = .region(newRegion)
         }
     }
-    //<--END-->
 }
 
 #Preview {
