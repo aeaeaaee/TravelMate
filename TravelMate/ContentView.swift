@@ -1,12 +1,15 @@
 import SwiftUI
 import MapKit
-// import CoreLocation // This should be in your LocationManager.swift file
 
 // Main View for the application
 struct ContentView: View {
     // Manages location services and updates.
-    // This now references the LocationManager class defined in LocationManager.swift
     @StateObject private var locationManager = LocationManager()
+    
+    //<--START-->
+    // Service to handle location search completions and distance calculation.
+    @StateObject private var searchService = LocationSearchService()
+    //<--END-->
     
     // Holds the text from the search bar.
     @State private var searchText = ""
@@ -19,23 +22,65 @@ struct ContentView: View {
     )
 
     var body: some View {
-        //NEW - START
-        // The main ZStack now layers the map, the new search bar, and the controls.
-        // The NavigationStack has been removed for a cleaner, full-map look.
         ZStack {
             // Layer 1: The Map background
             Map(coordinateRegion: $region, showsUserLocation: true)
                 .ignoresSafeArea()
 
-            // Layer 2: The Floating Search Bar
-            VStack {
-                HStack(spacing: 12) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.primary)
-                    
-                    TextField("Search for a destination", text: $searchText)
+            //<--START-->
+            // Layer 2: The UI elements (Search and Controls)
+            VStack(spacing: 0) {
+                // A single container for the search bar and its results.
+                VStack(spacing: 0) {
+                    // The Search Bar UI
+                    HStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.primary)
+                        
+                        TextField("Search for a destination", text: $searchText)
+                            // When text changes, update the search service's query.
+                            .onChange(of: searchText) {
+                                searchService.queryFragment = searchText
+                            }
+                    }
+                    .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+
+                    // The Dropdown List for Search Results, now showing distance.
+                    if !searchService.searchResults.isEmpty && !searchText.isEmpty {
+                        Divider() // Separator between search bar and results.
+                        
+                        ForEach(searchService.searchResults) { result in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(result.completion.title)
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                
+                                // A horizontal stack to hold the subtitle and the distance.
+                                HStack {
+                                    Text(result.completion.subtitle)
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Text(result.distance)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding()
+                            .contentShape(Rectangle()) // Makes the whole area tappable.
+                            .onTapGesture {
+                                // Handle the user's selection.
+                                handleSelection(result.completion)
+                            }
+                            
+                            // Add a divider unless it's the last item.
+                            if result != searchService.searchResults.last {
+                                Divider()
+                            }
+                        }
+                    }
                 }
-                .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 .background(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(radius: 5, y: 3)
@@ -44,6 +89,11 @@ struct ContentView: View {
 
                 Spacer()
             }
+            .onChange(of: locationManager.location) {
+                // Update the search service with the user's current location.
+                searchService.currentLocation = locationManager.location
+            }
+            //<--END-->
 
             // Layer 3: The Map Controls
             VStack {
@@ -52,7 +102,7 @@ struct ContentView: View {
                     Spacer() // Pushes controls to the right
                     
                     VStack(spacing: 12) {
-                        // Geolocation Button: Centers the map on the user's current location.
+                        // Geolocation Button
                         Button(action: {
                             if let userLocation = locationManager.location {
                                 withAnimation {
@@ -65,53 +115,71 @@ struct ContentView: View {
                                 .padding(10)
                                 .frame(width: 44, height: 44)
                         }
-                        .background(.thinMaterial) // Using a semi-transparent material for the background
+                        .background(.thinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .shadow(radius: 4)
 
-                        // Combined Zoom In/Out Buttons in a single visual block.
+                        // Combined Zoom In/Out Buttons
                         VStack(spacing: 0) {
-                            // Zoom In Button
-                            Button(action: {
-                                withAnimation {
-                                    region.span.latitudeDelta /= 2
-                                    region.span.longitudeDelta /= 2
-                                }
-                            }) {
+                            Button(action: { zoom(in: true) }) {
                                 Image(systemName: "plus")
                                     .font(.system(size: 20, weight: .medium))
                                     .padding(10)
                                     .frame(width: 44, height: 44)
                             }
-
-                            // Visual separator between zoom buttons.
                             Divider().frame(width: 28)
-
-                            // Zoom Out Button
-                            Button(action: {
-                                withAnimation {
-                                    region.span.latitudeDelta *= 2
-                                    region.span.longitudeDelta *= 2
-                                }
-                            }) {
+                            Button(action: { zoom(in: false) }) {
                                 Image(systemName: "minus")
                                     .font(.system(size: 20, weight: .medium))
                                     .padding(10)
                                     .frame(width: 44, height: 44)
                             }
                         }
-                        .background(.thinMaterial) // Using a semi-transparent material for the background
+                        .background(.thinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .shadow(radius: 4)
                     }
-                    .padding() // Padding for the controls so they don't touch the screen edge.
+                    .padding()
                 }
             }
         }
-        //NEW - END
     }
+    
+    //<--START-->
+    // Handles tapping on a search result.
+    private func handleSelection(_ completion: MKLocalSearchCompletion) {
+        let searchRequest = MKLocalSearch.Request(completion: completion)
+        let search = MKLocalSearch(request: searchRequest)
+        search.start { response, error in
+            guard let mapItem = response?.mapItems.first else {
+                if let error = error {
+                    print("MKLocalSearch Error: \(error.localizedDescription)")
+                }
+                return
+            }
+            
+            DispatchQueue.main.async {
+                self.searchText = completion.title
+                if let coordinate = mapItem.placemark.location?.coordinate {
+                    self.region = MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
+                }
+                // Clear search text and completions to hide the list.
+                self.searchText = ""
+                self.searchService.searchResults = []
+            }
+        }
+    }
+    
+    // Refactored zoom logic.
+    private func zoom(in zoomIn: Bool) {
+        withAnimation {
+            let factor = zoomIn ? 0.5 : 2
+            region.span.latitudeDelta *= factor
+            region.span.longitudeDelta *= factor
+        }
+    }
+    //<--END-->
 }
-
 
 #Preview {
     ContentView()
