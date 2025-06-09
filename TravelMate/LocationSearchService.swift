@@ -1,8 +1,7 @@
-// <--START-->
-// This entire file is new content to support search functionality.
 import Foundation
 import MapKit
 import Combine
+import CoreLocation
 
 // A custom struct to hold a search completion and its calculated distance.
 struct SearchResult: Identifiable, Hashable {
@@ -79,9 +78,23 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
             }
         }
         
-        // When all searches are complete, update the main searchResults property.
+        // When all searches are complete, sort the results and update the UI.
         group.notify(queue: .main) {
-            self.searchResults = resultsWithDistance
+            //<--START-->
+            // Sort the results by distance before publishing.
+            let sortedResults = resultsWithDistance.sorted { (lhs, rhs) in
+                // Safely extract the numeric part of the distance string for comparison.
+                guard let lhsDistanceStr = lhs.distance.split(separator: " ").first,
+                      let lhsDistance = Double(lhsDistanceStr),
+                      let rhsDistanceStr = rhs.distance.split(separator: " ").first,
+                      let rhsDistance = Double(rhsDistanceStr) else {
+                    // If a distance can't be parsed, don't change their order.
+                    return false
+                }
+                return lhsDistance < rhsDistance
+            }
+            self.searchResults = sortedResults
+            //<--END-->
         }
     }
     
@@ -90,4 +103,3 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
         print("MKLocalSearchCompleter Error: \(error.localizedDescription)")
     }
 }
-// <--END-->

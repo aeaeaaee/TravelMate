@@ -33,37 +33,35 @@ struct ContentView: View {
     // Holds the currently selected location to display a pin on the map.
     @State private var selectedPlace: IdentifiablePlace?
 
-    //<--START-->
-    // Holds the calculated route to be drawn on the map.
-    @State private var route: MKPolyline?
-    //<--END-->
-
     var body: some View {
         ZStack {
-            // Layer 1: The Map background, now with a pin and route.
+            // Layer 1: The Map background, now with a pin.
             Map(position: $position) {
                 // This adds the blue dot for the user's current location.
                 UserAnnotation()
                 
-                // If a place has been selected, show a larger, custom red marker for it.
+                // If a place has been selected, show a custom red marker.
                 if let place = selectedPlace {
                     Annotation(place.mapItem.name ?? "Location", coordinate: place.mapItem.placemark.coordinate) {
                         Image(systemName: "mappin")
-                            .font(.system(size: 40))
+                            .font(.system(size: 60))
                             .foregroundColor(.red)
-                            .shadow(radius: 2)
                     }
                 }
-                
-                //<--START-->
-                // If a route has been calculated, draw it on the map.
-                if let route = route {
-                    MapPolyline(route)
-                        .stroke(.blue, lineWidth: 5)
-                }
-                //<--END-->
             }
             .ignoresSafeArea()
+            
+            // Gradient overlay for better status bar visibility
+            VStack {
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.black.opacity(0.4), Color.clear]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 150)
+                .ignoresSafeArea()
+                Spacer()
+            }
 
             // Layer 2: The UI elements (Search and Controls)
             VStack(spacing: 0) {
@@ -132,7 +130,7 @@ struct ContentView: View {
                 HStack {
                     Spacer() // Pushes controls to the right
                     
-                    VStack(spacing: 12) {
+                    VStack(spacing: 8) { // Reduced spacing for a tighter look
                         // Geolocation Button
                         Button(action: {
                             if let userLocation = locationManager.location {
@@ -150,26 +148,9 @@ struct ContentView: View {
                                 .padding(10)
                                 .frame(width: 44, height: 44)
                         }
-                        .background(.white)
+                        .background(.thinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .shadow(radius: 4)
-
-                        //<--START-->
-                        // Route calculation button
-                        Button(action: {
-                            calculateRoute()
-                        }) {
-                            Image(systemName: "arrow.swap")
-                                .font(.title2)
-                                .padding(5)
-                                .frame(width: 44, height: 44)
-                        }
-                        .background(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .shadow(radius: 4)
-                        // The button is disabled if there's no destination or user location.
-                        .disabled(selectedPlace == nil || locationManager.location == nil)
-                        //<--END-->
 
                         // Combined Zoom In/Out Buttons
                         VStack(spacing: 0) {
@@ -187,13 +168,87 @@ struct ContentView: View {
                                     .frame(width: 44, height: 44)
                             }
                         }
-                        .background(.white)
+                        .background(.thinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .shadow(radius: 4)
                     }
                     .padding()
+                    // Adjust padding to accommodate the taller bottom bar.
+                    .padding(.bottom, 70)
                 }
             }
+            
+            // Layer 4: The Bottom Navigation Bar
+            VStack(spacing: 0) {
+                Spacer()
+                
+                Divider() // A horizontal line to separate the bar from the map.
+                
+                HStack(alignment: .bottom) {
+                    // Home Button
+                    VStack(spacing: 4) {
+                        Image(systemName: "house.fill")
+                            .font(.system(size: 34))
+                        Text("Home")
+                            .font(.system(size: 15))
+                    }
+                    .frame(maxWidth: .infinity)
+                    
+                    // Record Button
+                    VStack(spacing: 4) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 34))
+                        Text("Record")
+                            .font(.system(size: 15))
+                    }
+                    .frame(maxWidth: .infinity)
+                    
+                    //<--START-->
+                    // Map Button (Central)
+                    VStack(spacing: 4) {
+                        Image(systemName: "map.fill")
+                            .font(.system(size: 34))
+                        Text("Map")
+                            .font(.system(size: 15))
+                    }
+                    .frame(maxWidth: .infinity)
+                    //<--END-->
+                    
+                    // Calendar Button
+                    VStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 34))
+                        Text("Calendar")
+                            .font(.system(size: 15))
+                    }
+                    .frame(maxWidth: .infinity)
+                    
+                    // Settings Button
+                    VStack(spacing: 4) {
+                        Image(systemName: "gear")
+                            .font(.system(size: 34))
+                        Text("Settings")
+                            .font(.system(size: 15))
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.top, 12)
+                .padding(.bottom, 30) // Extra padding for the home indicator
+                //<--START-->
+                .padding(.horizontal, 20) // Narrows the container to bring buttons closer.
+                //<--END-->
+                .frame(maxWidth: .infinity)
+                .background(.thinMaterial)
+                .foregroundColor(.black)
+                // This clips only the top corners, creating the sheet-like effect.
+                .clipShape(
+                    .rect(
+                        topLeadingRadius: 25,
+                        topTrailingRadius: 25
+                    )
+                )
+            }
+            .ignoresSafeArea()
         }
     }
     
@@ -210,11 +265,6 @@ struct ContentView: View {
             }
             
             DispatchQueue.main.async {
-                //<--START-->
-                // Clear any previous route before setting a new destination.
-                self.route = nil
-                //<--END-->
-                
                 // Set the selected place to show a pin on the map.
                 self.selectedPlace = IdentifiablePlace(mapItem: mapItem)
                 
@@ -232,46 +282,6 @@ struct ContentView: View {
             }
         }
     }
-    
-    //<--START-->
-    // Calculates the route between the user's location and the selected destination.
-    private func calculateRoute() {
-        // Ensure we have both a source and a destination.
-        guard let sourceLocation = locationManager.location, let destination = selectedPlace else {
-            print("Source or destination is missing.")
-            return
-        }
-        
-        // Create a direction request.
-        let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: MKPlacemark(coordinate: sourceLocation.coordinate))
-        request.destination = destination.mapItem
-        request.transportType = .automobile // Can be changed to .walking or .transit
-
-        // Perform the direction calculation.
-        let directions = MKDirections(request: request)
-        directions.calculate { response, error in
-            guard let routeResponse = response?.routes.first else {
-                if let error = error {
-                    print("Route calculation error: \(error.localizedDescription)")
-                }
-                return
-            }
-            
-            // Update the state with the new route polyline.
-            DispatchQueue.main.async {
-                self.route = routeResponse.polyline
-                
-                // Adjust the map to show the entire route.
-                let rect = routeResponse.polyline.boundingMapRect
-                let region = MKCoordinateRegion(rect)
-                withAnimation {
-                    self.position = .region(region)
-                }
-            }
-        }
-    }
-    //<--END-->
     
     // Refactored zoom logic to work with MapCameraPosition.
     private func zoom(in zoomIn: Bool) {
