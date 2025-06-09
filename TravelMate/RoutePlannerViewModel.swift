@@ -12,8 +12,6 @@ class RoutePlannerViewModel: ObservableObject {
     @Published var fromItem: MKMapItem?
     @Published var toItem: MKMapItem?
     
-    @Published var isFromFieldActive = false
-    
     // Services for handling search completions for the "From" and "To" fields.
     @Published var fromSearchService = LocationSearchService()
     @Published var toSearchService = LocationSearchService()
@@ -46,8 +44,11 @@ class RoutePlannerViewModel: ObservableObject {
         fromSearchService.searchResults = [] // Clear results
     }
     
+    //<--START-->
     // Handles the selection of a search result.
-    func handleResultSelection(_ completion: MKLocalSearchCompletion) {
+    // This function now correctly accepts the 'forFromField' argument.
+    func handleResultSelection(_ completion: MKLocalSearchCompletion, forFromField: Bool) {
+    //<--END-->
         let request = MKLocalSearch.Request(completion: completion)
         let search = MKLocalSearch(request: request)
         search.start { response, error in
@@ -56,9 +57,10 @@ class RoutePlannerViewModel: ObservableObject {
                 return
             }
             
-            // Update the correct field based on which one is active.
+            //<--START-->
+            // Update the correct field based on the 'forFromField' boolean.
             DispatchQueue.main.async {
-                if self.isFromFieldActive {
+                if forFromField {
                     self.fromText = mapItem.name ?? ""
                     self.fromItem = mapItem
                     self.fromSearchService.searchResults = [] // Clear results
@@ -68,6 +70,7 @@ class RoutePlannerViewModel: ObservableObject {
                     self.toSearchService.searchResults = [] // Clear results
                 }
             }
+            //<--END-->
         }
     }
 }
