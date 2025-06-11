@@ -25,9 +25,14 @@ struct ContentView: View {
     @State private var selectedPlace: IdentifiablePlace?
     @State private var route: MKPolyline?
     @State private var isShowingRoutePlanner = false
-    
-    // Tracks if a location has been selected from the main search results.
     @State private var isLocationSelected = false
+
+    // Enum to represent the different tabs in the navigation bar.
+    enum Tab {
+        case map, route, journey, settings
+    }
+    // State variable to track the currently selected tab.
+    @State private var selectedTab: Tab = .map
 
     var body: some View {
         ZStack {
@@ -57,9 +62,6 @@ struct ContentView: View {
             mainInterface
         }
         .sheet(isPresented: $isShowingRoutePlanner) {
-            //<--START-->
-            // The onGetDirections closure now correctly accepts two arguments (from and to)
-            // which are then used to calculate the route.
             RoutePlannerView(
                 isShowing: $isShowingRoutePlanner,
                 onGetDirections: { from, to in
@@ -68,7 +70,6 @@ struct ContentView: View {
                 userLocation: locationManager.location
             )
             .presentationDetents([.fraction(0.75)])
-            //<--END-->
         }
     }
     
@@ -167,27 +168,45 @@ struct ContentView: View {
                 Spacer()
                 Divider()
                 HStack(alignment: .bottom) {
-                    navBarButton(icon: "pencil", text: "Record")
-                    Button(action: { isShowingRoutePlanner = true }) {
-                        navBarButton(icon: "tram.fill", text: "Route", size: 30)
-                    }
-                    navBarButton(icon: "map.fill", text: "Map")
-                    navBarButton(icon: "calendar", text: "Calendar")
-                    navBarButton(icon: "gear", text: "Settings")
+                    // All buttons now use the same helper function for a consistent look and feel.
+                    navBarButton(icon: "map.fill", text: "Map", tab: .map)
+                    //<--START-->
+                    navBarButton(icon: "tram.fill", text: "Route", tab: .route, size: 22) // Custom size for the route button
+                    //<--END-->
+                    navBarButton(icon: "figure.walk.motion", text: "Journey", tab: .journey, size:22)
+                    navBarButton(icon: "gear", text: "Settings", tab: .settings)
                 }
-                .padding(.top, 12).padding(.bottom, 30).padding(.horizontal, 20)
-                .frame(maxWidth: .infinity).background(.thinMaterial).foregroundColor(.black)
+                .padding(.top, 12).padding(.bottom, 30).padding(.horizontal, 17)
+                .frame(maxWidth: .infinity).background(.thinMaterial)
                 .clipShape(.rect(topLeadingRadius: 25, topTrailingRadius: 25))
             }.ignoresSafeArea()
         }
     }
     
-    private func navBarButton(icon: String, text: String, size: CGFloat = 34) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: size))
-            Text(text).font(.system(size: 15))
-        }.frame(maxWidth: .infinity)
+    //<--START-->
+    // Helper function to create a standard navigation bar button.
+    // It now accepts a 'size' parameter to make the icon configurable.
+    private func navBarButton(icon: String, text: String, tab: Tab, size: CGFloat = 24) -> some View {
+        Button(action: {
+            // Set the selected tab.
+            selectedTab = tab
+            
+            // If the "Route" tab is tapped, show the planner sheet.
+            if tab == .route {
+                isShowingRoutePlanner = true
+            }
+        }) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: size)) // Use the configurable size
+                Text(text)
+                    .font(.body)
+            }
+            .foregroundColor(selectedTab == tab ? .blue : .gray)
+            .frame(maxWidth: .infinity)
+        }
     }
+    //<--END-->
     
     private func handleMainSearchSelection(_ completion: MKLocalSearchCompletion) {
         let request = MKLocalSearch.Request(completion: completion)
