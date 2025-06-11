@@ -14,36 +14,25 @@ struct IdentifiablePlace: Identifiable {
 
 // Main View for the application
 struct ContentView: View {
-    // Manages location services and updates.
     @StateObject private var locationManager = LocationManager()
-    
-    // Service to handle location search completions for the main search bar.
     @StateObject private var searchService = LocationSearchService()
     
-    // Holds the text from the search bar.
     @State private var searchText = ""
-    
-    // Defines the map's camera position.
     @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 22.3193, longitude: 114.1694),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     ))
-
-    // Holds the currently selected location to display a pin on the map.
     @State private var selectedPlace: IdentifiablePlace?
-    
-    // Holds the route polyline to be drawn on the map.
     @State private var route: MKPolyline?
-    
-    // Controls the visibility of the route planner pop-up.
     @State private var isShowingRoutePlanner = false
+    
+    // Tracks if a location has been selected from the main search results.
+    @State private var isLocationSelected = false
 
     var body: some View {
         ZStack {
-            // Layer 1: The Map background
             Map(position: $position) {
                 UserAnnotation()
-                
                 if let place = selectedPlace {
                     Annotation(place.mapItem.name ?? "Location", coordinate: place.mapItem.placemark.coordinate) {
                         Image(systemName: "mappin")
@@ -51,7 +40,6 @@ struct ContentView: View {
                             .foregroundColor(.red)
                     }
                 }
-                
                 if let route = route {
                     MapPolyline(route)
                         .stroke(.blue, lineWidth: 5)
@@ -59,24 +47,19 @@ struct ContentView: View {
             }
             .ignoresSafeArea()
             
-            // Gradient overlay for better status bar visibility
             VStack {
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.black.opacity(0.4), Color.clear]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 150)
-                .ignoresSafeArea()
+                LinearGradient(colors: [Color.black.opacity(0.2), .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 150)
                 Spacer()
             }
+            .ignoresSafeArea()
 
-            // Layer 2: Top Search Bar and Map Controls
             mainInterface
         }
-        //<--START-->
-        // Modifier to present the route planner sheet.
         .sheet(isPresented: $isShowingRoutePlanner) {
+            //<--START-->
+            // The onGetDirections closure now correctly accepts two arguments (from and to)
+            // which are then used to calculate the route.
             RoutePlannerView(
                 isShowing: $isShowingRoutePlanner,
                 onGetDirections: { from, to in
@@ -84,46 +67,73 @@ struct ContentView: View {
                 },
                 userLocation: locationManager.location
             )
-            // Sets the height of the sheet to be 75% of the screen.
             .presentationDetents([.fraction(0.75)])
+            //<--END-->
         }
-        //<--END-->
     }
     
-    // The main interface including search, map controls, and bottom bar.
     private var mainInterface: some View {
         ZStack {
             VStack(spacing: 0) {
-                // Main Search Bar and Results
-                VStack(spacing: 0) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "magnifyingglass")
-                        TextField("Search for a destination", text: $searchText)
-                            .onChange(of: searchText) { searchService.queryFragment = searchText }
-                    }
-                    .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                HStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                    
+                    TextField("Search for a destination", text: $searchText)
+                        .foregroundColor(isLocationSelected ? .blue : .primary)
+                        .onChange(of: searchText) {
+                            isLocationSelected = false
+                            searchService.queryFragment = searchText
+                        }
 
-                    if !searchService.searchResults.isEmpty && !searchText.isEmpty {
-                        Divider()
-                        ForEach(searchService.searchResults) { result in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(result.completion.title).font(.headline)
-                                HStack {
-                                    Text(result.completion.subtitle).font(.subheadline).foregroundColor(.secondary)
-                                    Spacer()
-                                    Text(result.distance).font(.caption).foregroundColor(.secondary)
-                                }
-                            }
-                            .padding()
-                            .contentShape(Rectangle())
-                            .onTapGesture { handleMainSearchSelection(result.completion) }
-                            
-                            if result != searchService.searchResults.last { Divider() }
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            searchText = ""
+                            searchService.searchResults = []
+                            isLocationSelected = false
+                        }) {
+                            Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                        }
+                        Button(action: { searchAndRoute(to: searchText) }) {
+                            Image(systemName: "arrow.triangle.turn.up.right.circle.fill").foregroundColor(.accentColor)
                         }
                     }
                 }
+                .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 .background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
                 .padding(.horizontal).padding(.top)
+
+                if !searchText.isEmpty && !isLocationSelected {
+                    VStack(spacing: 0) {
+                        ForEach(searchService.searchResults) { result in
+                            Button(action: { handleMainSearchSelection(result.completion) }) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(result.completion.title)
+                                            .font(.headline)
+                                            .foregroundColor(.primary)
+                                        Text(result.completion.subtitle)
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Text(result.distance)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding()
+                            }
+                            .buttonStyle(.plain)
+                            
+                            if result != searchService.searchResults.last { Divider().padding(.horizontal) }
+                        }
+                    }
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(radius: 5, y: 3)
+                    .padding(.horizontal)
+                    .padding(.top, 4)
+                }
+                
                 Spacer()
             }
             .onChange(of: locationManager.location) {
@@ -172,7 +182,6 @@ struct ContentView: View {
         }
     }
     
-    // Helper function to create a navigation bar button.
     private func navBarButton(icon: String, text: String, size: CGFloat = 34) -> some View {
         VStack(spacing: 4) {
             Image(systemName: icon).font(.system(size: size))
@@ -180,7 +189,6 @@ struct ContentView: View {
         }.frame(maxWidth: .infinity)
     }
     
-    // Handles selection from the main search bar.
     private func handleMainSearchSelection(_ completion: MKLocalSearchCompletion) {
         let request = MKLocalSearch.Request(completion: completion)
         let search = MKLocalSearch(request: request)
@@ -196,13 +204,39 @@ struct ContentView: View {
                     let newRegion = MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
                     withAnimation { self.position = .region(newRegion) }
                 }
-                self.searchText = ""
+                
+                self.searchText = "\(completion.title), \(completion.subtitle)"
+                self.isLocationSelected = true
                 self.searchService.searchResults = []
             }
         }
     }
 
-    // Calculates a route from a specific start and end point.
+    private func searchAndRoute(to query: String) {
+        guard let userLocation = locationManager.location else { return }
+
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        request.region = MKCoordinateRegion(center: userLocation.coordinate, latitudinalMeters: 20000, longitudinalMeters: 20000)
+
+        let search = MKLocalSearch(request: request)
+        search.start { response, error in
+            guard let destinationItem = response?.mapItems.first else {
+                if let error = error { print("Search failed for query '\(query)': \(error.localizedDescription)") }
+                return
+            }
+            let sourceItem = MKMapItem(placemark: MKPlacemark(coordinate: userLocation.coordinate))
+            DispatchQueue.main.async {
+                self.selectedPlace = IdentifiablePlace(mapItem: destinationItem)
+                self.calculateRoute(from: sourceItem, to: destinationItem)
+                
+                self.searchText = "\(destinationItem.name ?? ""), \(destinationItem.placemark.title ?? "")"
+                self.isLocationSelected = true
+                self.searchService.searchResults = []
+            }
+        }
+    }
+    
     private func calculateRoute(from: MKMapItem, to: MKMapItem) {
         let request = MKDirections.Request()
         request.source = from
@@ -224,7 +258,6 @@ struct ContentView: View {
         }
     }
     
-    // Zooms the map in or out.
     private func zoom(in zoomIn: Bool) {
         guard let currentRegion = position.region else { return }
         let factor = zoomIn ? 0.5 : 2

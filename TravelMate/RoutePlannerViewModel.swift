@@ -44,11 +44,8 @@ class RoutePlannerViewModel: ObservableObject {
         fromSearchService.searchResults = [] // Clear results
     }
     
-    //<--START-->
     // Handles the selection of a search result.
-    // This function now correctly accepts the 'forFromField' argument.
     func handleResultSelection(_ completion: MKLocalSearchCompletion, forFromField: Bool) {
-    //<--END-->
         let request = MKLocalSearch.Request(completion: completion)
         let search = MKLocalSearch(request: request)
         search.start { response, error in
@@ -57,7 +54,6 @@ class RoutePlannerViewModel: ObservableObject {
                 return
             }
             
-            //<--START-->
             // Update the correct field based on the 'forFromField' boolean.
             DispatchQueue.main.async {
                 if forFromField {
@@ -70,7 +66,33 @@ class RoutePlannerViewModel: ObservableObject {
                     self.toSearchService.searchResults = [] // Clear results
                 }
             }
-            //<--END-->
         }
     }
+    
+    //<--START-->
+    // Calculates the route and passes the result back via a completion handler.
+    func getDirections(completion: @escaping (MKRoute?) -> Void) {
+        guard let fromItem = fromItem, let toItem = toItem else {
+            completion(nil)
+            return
+        }
+        
+        let request = MKDirections.Request()
+        request.source = fromItem
+        request.destination = toItem
+        request.transportType = .automobile
+
+        let directions = MKDirections(request: request)
+        directions.calculate { response, error in
+            guard let route = response?.routes.first else {
+                if let error = error {
+                    print("Route calculation error: \(error.localizedDescription)")
+                }
+                completion(nil)
+                return
+            }
+            completion(route)
+        }
+    }
+    //<--END-->
 }
