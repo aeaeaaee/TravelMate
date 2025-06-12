@@ -10,10 +10,8 @@ struct RoutePlannerView: View {
     // Binding to control the visibility of this sheet.
     @Binding var isShowing: Bool
     
-    //<--START-->
     // The callback now correctly expects two MKMapItem arguments.
     var onGetDirections: (MKMapItem, MKMapItem) -> Void
-    //<--END-->
     
     // The user's current location, passed in from the main view.
     var userLocation: CLLocation?
@@ -26,126 +24,171 @@ struct RoutePlannerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 10) {
-                // The input fields container.
-                VStack(spacing: 10) {
-                    Grid(alignment: .leading, horizontalSpacing: 12) {
-                        GridRow(alignment: .center) {
-                            Text("From:")
-                                .font(.headline)
-                            
-                            ZStack(alignment: .trailing) {
-                                TextField("Search or use current location", text: $viewModel.fromText)
-                                    .textFieldStyle(.roundedBorder)
-                                    .focused($focusedField, equals: .from)
+            Capsule()
+                .fill(Color.secondary)
+                .frame(width: 40, height: 5)
+                .padding(.vertical, 8)
+            
+            // Use a ZStack to allow the dropdown to overlay other content.
+            ZStack(alignment: .top) {
+                // This VStack holds the main content (input fields and button).
+                VStack(spacing: 0) {
+                    VStack(spacing: 10) {
+                        Grid(alignment: .leading, horizontalSpacing: 12) {
+                            GridRow(alignment: .center) {
+                                Text("From:")
+                                    .font(.headline)
                                 
-                                HStack {
-                                    if !viewModel.fromText.isEmpty {
-                                        Button(action: { viewModel.fromText = "" }) {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .foregroundColor(.secondary)
+                                ZStack(alignment: .trailing) {
+                                    TextField("Search or use current location", text: $viewModel.fromText)
+                                        .textFieldStyle(.roundedBorder)
+                                        .focused($focusedField, equals: .from)
+                                        .foregroundColor(viewModel.isFromLocationSelected ? .blue : .primary)
+                                    
+                                    HStack(spacing: 12) {
+                                        if !viewModel.fromText.isEmpty {
+                                            Button(action: { viewModel.fromText = "" }) {
+                                                Image(systemName: "xmark.circle.fill")
+                                            }
                                         }
+                                        Button(action: { viewModel.useCurrentLocation(location: userLocation) }) {
+                                            Image(systemName: "location.circle.fill")
+                                                .foregroundColor(userLocation == nil ? .gray : .accentColor)
+                                        }
+                                        .disabled(userLocation == nil)
                                     }
-                                    Button(action: { viewModel.useCurrentLocation(location: userLocation) }) {
-                                        Image(systemName: "location.circle.fill")
-                                    }.disabled(userLocation == nil)
-                                }
-                                .padding(.trailing, 8)
-                                .font(.title2)
-                            }
-                            .gridCellColumns(2)
-                        }
-                        
-                        GridRow(alignment: .center) {
-                            Text("To:")
-                                .font(.headline)
-                            
-                            ZStack(alignment: .trailing) {
-                                TextField("Search for a destination", text: $viewModel.toText)
-                                    .textFieldStyle(.roundedBorder)
-                                    .focused($focusedField, equals: .to)
-                                
-                                if !viewModel.toText.isEmpty {
-                                    Button(action: { viewModel.toText = "" }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.secondary)
-                                            .font(.title2)
-                                    }
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
                                     .padding(.trailing, 8)
                                 }
                             }
-                            .gridCellColumns(2)
-                        }
-                    }
-                }
-                .padding()
+                            
+                            GridRow(alignment: .center) {
+                                Text("To:")
+                                    .font(.headline)
+                                
+                                ZStack(alignment: .trailing) {
+                                    TextField("Search for a destination", text: $viewModel.toText)
+                                        .textFieldStyle(.roundedBorder)
+                                        .focused($focusedField, equals: .to)
+                                        .foregroundColor(viewModel.isToLocationSelected ? .blue : .primary)
 
-                // The 3-row box for quick search results.
-                VStack(spacing: 0) {
-                    Text("Top Results").font(.headline).padding(.top)
-                    Rectangle()
-                        .frame(height: 1)
-                        .foregroundColor(Color(UIColor.systemGray4))
-                        .padding(.vertical, 4)
-                    
-                    let results = (focusedField == .from) ? viewModel.fromSearchService.searchResults : viewModel.toSearchService.searchResults
-                    
-                    if results.isEmpty {
-                        Spacer()
-                        Text("Start typing to see suggestions.")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    } else {
-                        List {
-                            ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
-                                Button(action: { viewModel.handleResultSelection(result.completion, forFromField: focusedField == .from) }) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("\(result.completion.title), \(result.completion.subtitle)")
-                                            .font(.headline)
-                                            .foregroundColor(.primary)
-                                        Text(result.distance)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
+                                    if !viewModel.toText.isEmpty {
+                                        Button(action: { viewModel.toText = "" }) {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.title2)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .padding(.trailing, 8)
                                     }
                                 }
-                                .buttonStyle(.plain)
-                                .listRowBackground(index % 2 == 0 ? Color.clear : Color.black.opacity(0.05))
                             }
                         }
-                        .listStyle(.plain)
                     }
+                    .padding()
+                    
+                    Spacer() // Pushes the button to the bottom
                 }
-                .frame(width: 350, height: 300)
-                .background(.thinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .shadow(radius: 5, y: 3)
-                .padding(.horizontal)
+                .zIndex(0) // Ensure the main content is on the bottom layer.
+                
+                // --- Search Results Dropdown for "From" Field ---
+                let fromResults = viewModel.fromSearchService.searchResults
+                if focusedField == .from && !fromResults.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(fromResults) { result in
+                            Button(action: { viewModel.handleResultSelection(result.completion, forFromField: true) }) {
+                                resultRow(result: result)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            if result.id != fromResults.last?.id {
+                                Divider().padding(.leading)
+                            }
+                        }
+                    }
+                    .background(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(radius: 5, y: 3)
+                    .padding(.horizontal)
+                    .offset(y: 65)
+                    .zIndex(1)
+                }
+                
+                // --- Search Results Dropdown for "To" Field ---
+                let toResults = viewModel.toSearchService.searchResults
+                if focusedField == .to && !toResults.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(toResults) { result in
+                            Button(action: { viewModel.handleResultSelection(result.completion, forFromField: false) }) {
+                                resultRow(result: result)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            if result.id != toResults.last?.id {
+                                Divider().padding(.leading)
+                            }
+                        }
+                    }
+                    .background(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(radius: 5, y: 3)
+                    .padding(.horizontal)
+                    .offset(y: 110)
+                    .zIndex(1)
+                }
             }
-            
-            Spacer()
             
             // "Get Directions" button
-            Button(action: {
-                if let from = viewModel.fromItem, let to = viewModel.toItem {
-                    onGetDirections(from, to)
-                    isShowing = false
+            VStack {
+                Spacer()
+                Button(action: {
+                    if let from = viewModel.fromItem, let to = viewModel.toItem {
+                        onGetDirections(from, to)
+                        isShowing = false
+                    }
+                }) {
+                    Text("Get Directions")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
                 }
-            }) {
-                Text("Get Directions")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
+                .padding()
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.fromItem == nil || viewModel.toItem == nil)
             }
-            .padding()
-            .buttonStyle(.borderedProminent)
-            .disabled(viewModel.fromItem == nil || viewModel.toItem == nil)
         }
         .background(Color(UIColor.systemGroupedBackground))
+        //<--START-->
+        // Make the entire background area tappable.
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Dismiss the keyboard, which removes focus from the text field.
+            focusedField = nil
+        }
+        //<--END-->
         .onAppear {
             viewModel.fromSearchService.currentLocation = userLocation
             viewModel.toSearchService.currentLocation = userLocation
             focusedField = .from
         }
+    }
+    
+    // Helper view for a single search result row.
+    private func resultRow(result: SearchResult) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.completion.title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Text(result.completion.subtitle)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Text(result.distance)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
     }
 }
 

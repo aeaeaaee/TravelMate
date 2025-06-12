@@ -12,6 +12,12 @@ class RoutePlannerViewModel: ObservableObject {
     @Published var fromItem: MKMapItem?
     @Published var toItem: MKMapItem?
     
+    //<--START-->
+    // Properties to track if a location has been selected for each field.
+    @Published var isFromLocationSelected = false
+    @Published var isToLocationSelected = false
+    //<--END-->
+    
     // Services for handling search completions for the "From" and "To" fields.
     @Published var fromSearchService = LocationSearchService()
     @Published var toSearchService = LocationSearchService()
@@ -23,14 +29,28 @@ class RoutePlannerViewModel: ObservableObject {
         $fromText
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
+                //<--START-->
+                // Only reset the selection state if the user manually clears the field.
+                if newText.isEmpty {
+                    self?.isFromLocationSelected = false
+                    self?.fromItem = nil // Also clear the selected map item.
+                }
                 self?.fromSearchService.queryFragment = newText
+                //<--END-->
             }
             .store(in: &cancellables)
             
         $toText
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
+                //<--START-->
+                // Only reset the selection state if the user manually clears the field.
+                if newText.isEmpty {
+                    self?.isToLocationSelected = false
+                    self?.toItem = nil // Also clear the selected map item.
+                }
                 self?.toSearchService.queryFragment = newText
+                //<--END-->
             }
             .store(in: &cancellables)
     }
@@ -41,6 +61,7 @@ class RoutePlannerViewModel: ObservableObject {
         if let location = location {
             fromItem = MKMapItem(placemark: MKPlacemark(coordinate: location.coordinate))
         }
+        isFromLocationSelected = true // Mark as selected
         fromSearchService.searchResults = [] // Clear results
     }
     
@@ -57,19 +78,20 @@ class RoutePlannerViewModel: ObservableObject {
             // Update the correct field based on the 'forFromField' boolean.
             DispatchQueue.main.async {
                 if forFromField {
-                    self.fromText = mapItem.name ?? ""
+                    self.fromText = "\(mapItem.name ?? ""), \(mapItem.placemark.title ?? "")"
                     self.fromItem = mapItem
+                    self.isFromLocationSelected = true // Mark as selected
                     self.fromSearchService.searchResults = [] // Clear results
                 } else {
-                    self.toText = mapItem.name ?? ""
+                    self.toText = "\(mapItem.name ?? ""), \(mapItem.placemark.title ?? "")"
                     self.toItem = mapItem
+                    self.isToLocationSelected = true // Mark as selected
                     self.toSearchService.searchResults = [] // Clear results
                 }
             }
         }
     }
     
-    //<--START-->
     // Calculates the route and passes the result back via a completion handler.
     func getDirections(completion: @escaping (MKRoute?) -> Void) {
         guard let fromItem = fromItem, let toItem = toItem else {
@@ -94,5 +116,4 @@ class RoutePlannerViewModel: ObservableObject {
             completion(route)
         }
     }
-    //<--END-->
 }
