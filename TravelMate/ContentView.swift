@@ -76,33 +76,77 @@ struct ContentView: View {
     private var mainInterface: some View {
         ZStack {
             VStack(spacing: 0) {
-                //<--START-->
                 // The search bar and route button are now in a horizontal stack.
                 HStack {
-                    // This HStack contains the search bar elements.
-                    HStack(spacing: 12) {
-                        Image(systemName: "magnifyingglass")
-                        
-                        TextField("Search for a destination", text: $searchText)
-                            .foregroundColor(isLocationSelected ? .blue : .primary)
-                            .onChange(of: searchText) {
-                                isLocationSelected = false
-                                searchService.queryFragment = searchText
+                    // This VStack will contain the search bar and the results list.
+                    VStack(spacing: 4) {
+                        //<--START-->
+                        // This HStack contains the search bar elements.
+                        HStack(spacing: 12) {
+                            Image(systemName: "magnifyingglass")
+                            
+                            // We use a ZStack to toggle between a single-line TextField for input
+                            // and a multi-line Text view for displaying the selected location.
+                            ZStack(alignment: .leading) {
+                                if isLocationSelected {
+                                    Text(searchText)
+                                        .foregroundColor(.blue)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                } else {
+                                    TextField("Search for a destination", text: $searchText)
+                                        .onChange(of: searchText) {
+                                            isLocationSelected = false
+                                            searchService.queryFragment = searchText
+                                        }
+                                }
                             }
 
-                        // The clear button still appears inside the text field.
-                        if !searchText.isEmpty {
-                            Button(action: {
-                                searchText = ""
-                                searchService.searchResults = []
-                                isLocationSelected = false
-                            }) {
-                                Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                            // The clear button still appears inside the text field.
+                            if !searchText.isEmpty {
+                                Button(action: {
+                                    searchText = ""
+                                    searchService.searchResults = []
+                                    isLocationSelected = false
+                                }) {
+                                    Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                                }
                             }
                         }
+                        .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                        .background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
+                        
+                        // The search results list.
+                        if !searchText.isEmpty && !isLocationSelected {
+                            VStack(spacing: 0) {
+                                ForEach(searchService.searchResults) { result in
+                                    Button(action: { handleMainSearchSelection(result.completion) }) {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(result.completion.title)
+                                                    .font(.headline)
+                                                    .foregroundColor(.primary)
+                                                Text(result.completion.subtitle)
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            Spacer()
+                                            Text(result.distance)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .padding()
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    if result != searchService.searchResults.last { Divider().padding(.horizontal) }
+                                }
+                            }
+                            .background(.thinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .shadow(radius: 5, y: 3)
+                        }
+                        //<--END-->
                     }
-                    .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-                    .background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
                     
                     // The "Route to location" button is now outside the search bar.
                     Button(action: { searchAndRoute(to: searchText) }) {
@@ -113,40 +157,7 @@ struct ContentView: View {
                     .disabled(searchText.isEmpty || !isLocationSelected) // Disabled unless a location is selected
                 }
                 .padding(.horizontal).padding(.top)
-                //<--END-->
 
-                if !searchText.isEmpty && !isLocationSelected {
-                    VStack(spacing: 0) {
-                        ForEach(searchService.searchResults) { result in
-                            Button(action: { handleMainSearchSelection(result.completion) }) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(result.completion.title)
-                                            .font(.headline)
-                                            .foregroundColor(.primary)
-                                        Text(result.completion.subtitle)
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    Spacer()
-                                    Text(result.distance)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding()
-                            }
-                            .buttonStyle(.plain)
-                            
-                            if result != searchService.searchResults.last { Divider().padding(.horizontal) }
-                        }
-                    }
-                    .background(.thinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .shadow(radius: 5, y: 3)
-                    .padding(.horizontal)
-                    .padding(.top, 4)
-                }
-                
                 Spacer()
             }
             .onChange(of: locationManager.location) {
