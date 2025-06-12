@@ -76,32 +76,44 @@ struct ContentView: View {
     private var mainInterface: some View {
         ZStack {
             VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    Image(systemName: "magnifyingglass")
-                    
-                    TextField("Search for a destination", text: $searchText)
-                        .foregroundColor(isLocationSelected ? .blue : .primary)
-                        .onChange(of: searchText) {
-                            isLocationSelected = false
-                            searchService.queryFragment = searchText
-                        }
+                //<--START-->
+                // The search bar and route button are now in a horizontal stack.
+                HStack {
+                    // This HStack contains the search bar elements.
+                    HStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                        
+                        TextField("Search for a destination", text: $searchText)
+                            .foregroundColor(isLocationSelected ? .blue : .primary)
+                            .onChange(of: searchText) {
+                                isLocationSelected = false
+                                searchService.queryFragment = searchText
+                            }
 
-                    if !searchText.isEmpty {
-                        Button(action: {
-                            searchText = ""
-                            searchService.searchResults = []
-                            isLocationSelected = false
-                        }) {
-                            Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
-                        }
-                        Button(action: { searchAndRoute(to: searchText) }) {
-                            Image(systemName: "arrow.triangle.turn.up.right.circle.fill").foregroundColor(.accentColor)
+                        // The clear button still appears inside the text field.
+                        if !searchText.isEmpty {
+                            Button(action: {
+                                searchText = ""
+                                searchService.searchResults = []
+                                isLocationSelected = false
+                            }) {
+                                Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                            }
                         }
                     }
+                    .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                    .background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
+                    
+                    // The "Route to location" button is now outside the search bar.
+                    Button(action: { searchAndRoute(to: searchText) }) {
+                        Image(systemName: "arrow.triangle.turn.up.right.circle.fill")
+                            .font(.system(size: 32)) // Larger icon for better tap target
+                            .foregroundColor(.accentColor)
+                    }
+                    .disabled(searchText.isEmpty || !isLocationSelected) // Disabled unless a location is selected
                 }
-                .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-                .background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
                 .padding(.horizontal).padding(.top)
+                //<--END-->
 
                 if !searchText.isEmpty && !isLocationSelected {
                     VStack(spacing: 0) {
@@ -160,7 +172,7 @@ struct ContentView: View {
                             Divider().frame(width: 28)
                             Button(action: { zoom(in: false) }) { Image(systemName: "minus").font(.system(size: 20, weight: .medium)).padding(10).frame(width: 44, height: 44) }
                         }.background(.thinMaterial).clipShape(RoundedRectangle(cornerRadius: 8)).shadow(radius: 4)
-                    }.padding().padding(.bottom, 70)
+                    }.padding().padding(.bottom, 35.0)
                 }
             }
             
@@ -168,45 +180,35 @@ struct ContentView: View {
                 Spacer()
                 Divider()
                 HStack(alignment: .bottom) {
-                    // All buttons now use the same helper function for a consistent look and feel.
-                    navBarButton(icon: "map.fill", text: "Map", tab: .map)
-                    //<--START-->
-                    navBarButton(icon: "tram.fill", text: "Route", tab: .route, size: 22) // Custom size for the route button
-                    //<--END-->
                     navBarButton(icon: "figure.walk.motion", text: "Journey", tab: .journey, size:22)
+                    navBarButton(icon: "map.fill", text: "Map", tab: .map)
+                    navBarButton(icon: "tram.fill", text: "Route", tab: .route, size: 22)
                     navBarButton(icon: "gear", text: "Settings", tab: .settings)
                 }
-                .padding(.top, 12).padding(.bottom, 30).padding(.horizontal, 17)
+                .padding(.top, 8.0).padding(.bottom, 12.0).padding(.horizontal, 17)
                 .frame(maxWidth: .infinity).background(.thinMaterial)
                 .clipShape(.rect(topLeadingRadius: 25, topTrailingRadius: 25))
             }.ignoresSafeArea()
         }
     }
     
-    //<--START-->
-    // Helper function to create a standard navigation bar button.
-    // It now accepts a 'size' parameter to make the icon configurable.
     private func navBarButton(icon: String, text: String, tab: Tab, size: CGFloat = 24) -> some View {
         Button(action: {
-            // Set the selected tab.
             selectedTab = tab
-            
-            // If the "Route" tab is tapped, show the planner sheet.
             if tab == .route {
                 isShowingRoutePlanner = true
             }
         }) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: size)) // Use the configurable size
+                    .font(.system(size: size))
                 Text(text)
-                    .font(.body)
+                    .font(.caption)
             }
             .foregroundColor(selectedTab == tab ? .blue : .gray)
             .frame(maxWidth: .infinity)
         }
     }
-    //<--END-->
     
     private func handleMainSearchSelection(_ completion: MKLocalSearchCompletion) {
         let request = MKLocalSearch.Request(completion: completion)
