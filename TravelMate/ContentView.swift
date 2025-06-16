@@ -22,18 +22,23 @@ struct ContentView: View {
     @State private var selectedPlace: IdentifiablePlace?
     @State private var route: MKPolyline?
     @State private var isLocationSelected = false
+    @State private var isInitialLocationSet = false
+    @State private var isSelectionInProgress = false
 
-    //<--START-->
+    // An enum and state property to manage the focus state of the main search bar.
+    private enum SearchField: Hashable {
+        case main
+    }
+    @FocusState private var focusedField: SearchField?
+
     // Enum to represent the different tabs in the navigation bar.
     enum Tab {
         case map, route, journey, settings
     }
     // State variable to track the currently selected tab.
     @State private var selectedTab: Tab = .map
-    //<--END-->
 
     var body: some View {
-        //<--START-->
         ZStack {
             // The content of the view changes based on the selected tab.
             VStack {
@@ -41,7 +46,7 @@ struct ContentView: View {
                 case .map:
                     mapView
                 case .route:
-                    RouteView()
+                    RouteView() // The new full-screen view for routing.
                 case .journey:
                     JourneyView()
                 case .settings:
@@ -56,18 +61,19 @@ struct ContentView: View {
             }
             .ignoresSafeArea() // Allow nav bar to go to the bottom edge
         }
-        //<--END-->
         .onChange(of: locationManager.location) {
             // This modifier watches for the first location update from the locationManager.
-            if let userLocation = locationManager.location, !isLocationSelected {
+            if let userLocation = locationManager.location, !isInitialLocationSet {
                 // Center the map on the user's current location.
                 let userRegion = MKCoordinateRegion(
                     center: userLocation.coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02) // More zoomed-in span
                 )
                 withAnimation {
                     position = .region(userRegion)
                 }
+                // Prevent this from running again.
+                isInitialLocationSet = true
             }
         }
     }
@@ -99,6 +105,7 @@ struct ContentView: View {
                         .stroke(.blue, lineWidth: 5)
                 }
             }
+            .onTapGesture { focusedField = nil }
             .ignoresSafeArea()
             
             VStack {
@@ -115,20 +122,18 @@ struct ContentView: View {
     private var mainMapInterface: some View {
         ZStack {
             VStack(spacing: 0) {
-                // The search bar and route button are now in a horizontal stack.
                 HStack {
-                    // This HStack contains the search bar elements.
                     HStack(spacing: 12) {
                         Image(systemName: "magnifyingglass")
                         
                         TextField("Search for a destination", text: $searchText)
                             .foregroundColor(isLocationSelected ? .blue : .primary)
+                            .focused($focusedField, equals: .main)
                             .onChange(of: searchText) {
-                                isLocationSelected = false
+                                if !isSelectionInProgress { isLocationSelected = false }
                                 searchService.queryFragment = searchText
                             }
 
-                        // The clear button still appears inside the text field.
                         if !searchText.isEmpty {
                             Button(action: {
                                 searchText = ""
@@ -142,13 +147,12 @@ struct ContentView: View {
                     .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                     .background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
                     
-                    // The "Route to location" button is now outside the search bar.
                     Button(action: { searchAndRoute(to: searchText) }) {
                         Image(systemName: "arrow.triangle.turn.up.right.circle.fill")
-                            .font(.system(size: 32)) // Larger icon for better tap target
+                            .font(.system(size: 32))
                             .foregroundColor(.accentColor)
                     }
-                    .disabled(searchText.isEmpty || !isLocationSelected) // Disabled unless a location is selected
+                    .disabled(searchText.isEmpty || !isLocationSelected)
                 }
                 .padding(.horizontal).padding(.top)
 
@@ -227,7 +231,11 @@ struct ContentView: View {
             }
             .padding(.top, 8.0).padding(.bottom, 12.0).padding(.horizontal, 17)
             .frame(maxWidth: .infinity)
-            .background(.thinMaterial)
+            .background(
+                Rectangle()
+                    .fill(.thinMaterial)
+                    .ignoresSafeArea()
+            )
             .clipShape(.rect(topLeadingRadius: 25, topTrailingRadius: 25))
         }
     }
@@ -263,10 +271,14 @@ struct ContentView: View {
                     let newRegion = MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
                     withAnimation { self.position = .region(newRegion) }
                 }
-                
+                isSelectionInProgress = true
                 self.searchText = "\(completion.title), \(completion.subtitle)"
                 self.isLocationSelected = true
                 self.searchService.searchResults = []
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isSelectionInProgress = false
+                }
             }
         }
     }
@@ -288,10 +300,14 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 self.selectedPlace = IdentifiablePlace(mapItem: destinationItem)
                 self.calculateRoute(from: sourceItem, to: destinationItem)
-                
+                isSelectionInProgress = true
                 self.searchText = "\(destinationItem.name ?? ""), \(destinationItem.placemark.title ?? "")"
                 self.isLocationSelected = true
                 self.searchService.searchResults = []
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isSelectionInProgress = false
+                }
             }
         }
     }

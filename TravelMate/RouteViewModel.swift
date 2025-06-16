@@ -3,7 +3,7 @@ import MapKit
 import Combine
 
 // ViewModel to contain all the logic for the RoutePlannerView.
-class RoutePlannerViewModel: ObservableObject {
+class RouteViewModel: ObservableObject {
     
     // Published properties to hold the state, which the View will observe.
     @Published var fromText = ""
@@ -13,9 +13,8 @@ class RoutePlannerViewModel: ObservableObject {
     @Published var toItem: MKMapItem?
     
     //<--START-->
-    // Properties to track if a location has been selected for each field.
-    @Published var isFromLocationSelected = false
-    @Published var isToLocationSelected = false
+    // This property will hold the calculated route for the view to observe.
+    @Published var route: MKPolyline?
     //<--END-->
     
     // Services for handling search completions for the "From" and "To" fields.
@@ -29,28 +28,14 @@ class RoutePlannerViewModel: ObservableObject {
         $fromText
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
-                //<--START-->
-                // Only reset the selection state if the user manually clears the field.
-                if newText.isEmpty {
-                    self?.isFromLocationSelected = false
-                    self?.fromItem = nil // Also clear the selected map item.
-                }
                 self?.fromSearchService.queryFragment = newText
-                //<--END-->
             }
             .store(in: &cancellables)
             
         $toText
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
-                //<--START-->
-                // Only reset the selection state if the user manually clears the field.
-                if newText.isEmpty {
-                    self?.isToLocationSelected = false
-                    self?.toItem = nil // Also clear the selected map item.
-                }
                 self?.toSearchService.queryFragment = newText
-                //<--END-->
             }
             .store(in: &cancellables)
     }
@@ -61,7 +46,6 @@ class RoutePlannerViewModel: ObservableObject {
         if let location = location {
             fromItem = MKMapItem(placemark: MKPlacemark(coordinate: location.coordinate))
         }
-        isFromLocationSelected = true // Mark as selected
         fromSearchService.searchResults = [] // Clear results
     }
     
@@ -78,26 +62,23 @@ class RoutePlannerViewModel: ObservableObject {
             // Update the correct field based on the 'forFromField' boolean.
             DispatchQueue.main.async {
                 if forFromField {
-                    self.fromText = "\(mapItem.name ?? ""), \(mapItem.placemark.title ?? "")"
+                    self.fromText = mapItem.name ?? ""
                     self.fromItem = mapItem
-                    self.isFromLocationSelected = true // Mark as selected
                     self.fromSearchService.searchResults = [] // Clear results
                 } else {
-                    self.toText = "\(mapItem.name ?? ""), \(mapItem.placemark.title ?? "")"
+                    self.toText = mapItem.name ?? ""
                     self.toItem = mapItem
-                    self.isToLocationSelected = true // Mark as selected
                     self.toSearchService.searchResults = [] // Clear results
                 }
             }
         }
     }
     
-    // Calculates the route and passes the result back via a completion handler.
-    func getDirections(completion: @escaping (MKRoute?) -> Void) {
-        guard let fromItem = fromItem, let toItem = toItem else {
-            completion(nil)
-            return
-        }
+    //<--START-->
+    // Calculates the route and updates the published route property.
+    func getDirections() {
+        self.route = nil // Clear previous route
+        guard let fromItem = fromItem, let toItem = toItem else { return }
         
         let request = MKDirections.Request()
         request.source = fromItem
@@ -110,10 +91,13 @@ class RoutePlannerViewModel: ObservableObject {
                 if let error = error {
                     print("Route calculation error: \(error.localizedDescription)")
                 }
-                completion(nil)
                 return
             }
-            completion(route)
+            // Update the main route property on the main thread.
+            DispatchQueue.main.async {
+                self.route = route.polyline
+            }
         }
     }
+    //<--END-->
 }
