@@ -20,9 +20,11 @@ struct ContentView: View {
     @State private var searchText = ""
     @State private var position: MapCameraPosition = .automatic
     @State private var selectedPlace: IdentifiablePlace?
-    @State private var route: MKPolyline?
-    @State private var isLocationSelected = false
-    @State private var isInitialLocationSet = false
+    @State private var route: MKPolyline? // Holds the calculated route polyline.
+    @State private var fromRouteMapItem: MKMapItem? // Holds the 'From' location for route display
+    @State private var toRouteMapItem: MKMapItem?   // Holds the 'To' location for route display
+    @State private var isLocationSelected = false // Tracks if a location is selected in the main search
+    @State private var isInitialLocationSet = false // Tracks if the map has centered on the initial location.
     @State private var isSelectionInProgress = false
 
     // An enum and state property to manage the focus state of the main search bar.
@@ -46,7 +48,12 @@ struct ContentView: View {
                 case .map:
                     mapView
                 case .route:
-                    RouteView() // The new full-screen view for routing.
+                    // Pass the closure to handle the route calculation and tab switch.
+                    RouteView { fromItem, toItem in
+                        self.calculateRoute(from: fromItem, to: toItem)
+                        self.selectedTab = .map
+                    }
+                    .environmentObject(locationManager)
                 case .journey:
                     JourneyView()
                 case .settings:
@@ -83,7 +90,8 @@ struct ContentView: View {
         ZStack {
             Map(position: $position) {
                 UserAnnotation()
-                if let place = selectedPlace {
+                // Only show selectedPlace pin if no route is active
+                if route == nil, let place = selectedPlace {
                     // The Annotation now includes a text label next to the pin.
                     Annotation(place.mapItem.name ?? "Location", coordinate: place.mapItem.placemark.coordinate) {
                         HStack(spacing: 4) {
@@ -100,6 +108,24 @@ struct ContentView: View {
                         }
                     }
                 }
+                // User's current location marker.
+                if let userLocation = locationManager.location {
+                    Marker("My Location", coordinate: userLocation.coordinate)
+                }
+
+                // Display the 'From' marker if it exists.
+                if let fromItem = fromRouteMapItem {
+                    Marker(item: fromItem)
+                        .tint(.blue) // Blue for 'From'
+                }
+
+                // Display the 'To' marker if it exists.
+                if let toItem = toRouteMapItem {
+                    Marker(item: toItem)
+                        .tint(.red) // Red for 'To'
+                }
+                
+                // Display the calculated route if it exists.
                 if let route = route {
                     MapPolyline(route)
                         .stroke(.blue, lineWidth: 5)
@@ -265,7 +291,9 @@ struct ContentView: View {
                 return
             }
             DispatchQueue.main.async {
-                self.route = nil
+                self.route = nil            // Clear previous route
+                self.fromRouteMapItem = nil // Clear previous 'From' marker
+                self.toRouteMapItem = nil   // Clear previous 'To' marker
                 self.selectedPlace = IdentifiablePlace(mapItem: mapItem)
                 if let coordinate = mapItem.placemark.location?.coordinate {
                     let newRegion = MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
@@ -276,9 +304,9 @@ struct ContentView: View {
                 self.isLocationSelected = true
                 self.searchService.searchResults = []
                 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: {
                     isSelectionInProgress = false
-                }
+                })
             }
         }
     }
@@ -305,18 +333,22 @@ struct ContentView: View {
                 self.isLocationSelected = true
                 self.searchService.searchResults = []
                 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: {
                     isSelectionInProgress = false
-                }
+                })
             }
         }
     }
     
     private func calculateRoute(from: MKMapItem, to: MKMapItem) {
+        self.selectedPlace = nil // Clear single selected place when showing a route
         let request = MKDirections.Request()
         request.source = from
         request.destination = to
         request.transportType = .automobile
+
+        self.fromRouteMapItem = from // Set 'From' marker for display
+        self.toRouteMapItem = to     // Set 'To' marker for display
 
         let directions = MKDirections(request: request)
         directions.calculate { response, error in
@@ -324,12 +356,12 @@ struct ContentView: View {
                 if let error = error { print("Route calculation error: \(error.localizedDescription)") }
                 return
             }
-            DispatchQueue.main.async {
-                self.route = routeResponse.polyline
+            DispatchQueue.main.async(execute: {
+                self.route = routeResponse.polyline // Changed self?.route to self.route
                 let rect = routeResponse.polyline.boundingMapRect.insetBy(dx: -500, dy: -500)
                 let region = MKCoordinateRegion(rect)
                 withAnimation { self.position = .region(region) }
-            }
+            })
         }
     }
     

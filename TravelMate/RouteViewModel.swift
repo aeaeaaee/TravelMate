@@ -12,10 +12,11 @@ class RouteViewModel: ObservableObject {
     @Published var fromItem: MKMapItem?
     @Published var toItem: MKMapItem?
     
-    //<--START-->
-    // This property will hold the calculated route for the view to observe.
-    @Published var route: MKPolyline?
-    //<--END-->
+
+
+    // Store the actual selected MKLocalSearchCompletion objects
+    @Published var selectedFromResult: MKLocalSearchCompletion? = nil
+    @Published var selectedToResult: MKLocalSearchCompletion? = nil
     
     // Services for handling search completions for the "From" and "To" fields.
     @Published var fromSearchService = LocationSearchService()
@@ -28,14 +29,44 @@ class RouteViewModel: ObservableObject {
         $fromText
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
-                self?.fromSearchService.queryFragment = newText
+                guard let self = self else { return }
+
+                let currentSelectedFullText = (self.selectedFromResult?.title ?? "") +
+                                              (self.selectedFromResult?.subtitle.isEmpty == false ? ", \(self.selectedFromResult?.subtitle ?? "")" : "")
+
+                if newText == currentSelectedFullText && self.selectedFromResult != nil {
+                    // Text matches the selected item, and an item is indeed selected.
+                    // This means the text field was populated by a selection.
+                    // Do NOT trigger a new search. The dropdown should remain closed.
+                    // The searchResults were already cleared in handleResultSelection.
+                } else {
+                    // User is typing something new, has cleared the field, or the text doesn't match a previous selection.
+                    if newText != currentSelectedFullText { // Clear selection if text diverges
+                        self.selectedFromResult = nil
+                    }
+                    self.fromSearchService.queryFragment = newText
+                }
             }
             .store(in: &cancellables)
             
         $toText
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
-                self?.toSearchService.queryFragment = newText
+                guard let self = self else { return }
+
+                let currentSelectedFullText = (self.selectedToResult?.title ?? "") +
+                                              (self.selectedToResult?.subtitle.isEmpty == false ? ", \(self.selectedToResult?.subtitle ?? "")" : "")
+
+                if newText == currentSelectedFullText && self.selectedToResult != nil {
+                    // Text matches the selected item, and an item is indeed selected.
+                    // Do NOT trigger a new search.
+                } else {
+                    // User is typing something new, has cleared the field, or the text doesn't match a previous selection.
+                    if newText != currentSelectedFullText { // Clear selection if text diverges
+                        self.selectedToResult = nil
+                    }
+                    self.toSearchService.queryFragment = newText
+                }
             }
             .store(in: &cancellables)
     }
@@ -47,6 +78,7 @@ class RouteViewModel: ObservableObject {
             fromItem = MKMapItem(placemark: MKPlacemark(coordinate: location.coordinate))
         }
         fromSearchService.searchResults = [] // Clear results
+        selectedFromResult = nil // Clear selection when using current location
     }
     
     // Handles the selection of a search result.
@@ -61,43 +93,21 @@ class RouteViewModel: ObservableObject {
             
             // Update the correct field based on the 'forFromField' boolean.
             DispatchQueue.main.async {
+                let fullText = completion.title + (completion.subtitle.isEmpty ? "" : ", \(completion.subtitle)")
                 if forFromField {
-                    self.fromText = mapItem.name ?? ""
+                    self.fromText = fullText
                     self.fromItem = mapItem
-                    self.fromSearchService.searchResults = [] // Clear results
+                    self.selectedFromResult = completion // Store selected completion
+                    self.fromSearchService.searchResults = [] // Clear results to hide dropdown
                 } else {
-                    self.toText = mapItem.name ?? ""
+                    self.toText = fullText
                     self.toItem = mapItem
-                    self.toSearchService.searchResults = [] // Clear results
+                    self.selectedToResult = completion // Store selected completion
+                    self.toSearchService.searchResults = [] // Clear results to hide dropdown
                 }
             }
         }
     }
     
-    //<--START-->
-    // Calculates the route and updates the published route property.
-    func getDirections() {
-        self.route = nil // Clear previous route
-        guard let fromItem = fromItem, let toItem = toItem else { return }
-        
-        let request = MKDirections.Request()
-        request.source = fromItem
-        request.destination = toItem
-        request.transportType = .automobile
 
-        let directions = MKDirections(request: request)
-        directions.calculate { response, error in
-            guard let route = response?.routes.first else {
-                if let error = error {
-                    print("Route calculation error: \(error.localizedDescription)")
-                }
-                return
-            }
-            // Update the main route property on the main thread.
-            DispatchQueue.main.async {
-                self.route = route.polyline
-            }
-        }
-    }
-    //<--END-->
 }
