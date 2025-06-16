@@ -18,31 +18,80 @@ struct ContentView: View {
     @StateObject private var searchService = LocationSearchService()
     
     @State private var searchText = ""
-    @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 22.3193, longitude: 114.1694),
-        span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
-    ))
+    @State private var position: MapCameraPosition = .automatic
     @State private var selectedPlace: IdentifiablePlace?
     @State private var route: MKPolyline?
-    @State private var isShowingRoutePlanner = false
     @State private var isLocationSelected = false
 
+    //<--START-->
     // Enum to represent the different tabs in the navigation bar.
     enum Tab {
         case map, route, journey, settings
     }
     // State variable to track the currently selected tab.
     @State private var selectedTab: Tab = .map
+    //<--END-->
 
     var body: some View {
+        //<--START-->
+        ZStack {
+            // The content of the view changes based on the selected tab.
+            VStack {
+                switch selectedTab {
+                case .map:
+                    mapView
+                case .route:
+                    RouteView()
+                case .journey:
+                    JourneyView()
+                case .settings:
+                    SettingsView()
+                }
+            }
+            
+            // The bottom navigation bar is always visible on top.
+            VStack {
+                Spacer()
+                bottomNavBar
+            }
+            .ignoresSafeArea() // Allow nav bar to go to the bottom edge
+        }
+        //<--END-->
+        .onChange(of: locationManager.location) {
+            // This modifier watches for the first location update from the locationManager.
+            if let userLocation = locationManager.location, !isLocationSelected {
+                // Center the map on the user's current location.
+                let userRegion = MKCoordinateRegion(
+                    center: userLocation.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                )
+                withAnimation {
+                    position = .region(userRegion)
+                }
+            }
+        }
+    }
+    
+    // The view content for the "Map" tab.
+    private var mapView: some View {
         ZStack {
             Map(position: $position) {
                 UserAnnotation()
                 if let place = selectedPlace {
+                    // The Annotation now includes a text label next to the pin.
                     Annotation(place.mapItem.name ?? "Location", coordinate: place.mapItem.placemark.coordinate) {
-                        Image(systemName: "mappin")
-                            .font(.system(size: 60))
-                            .foregroundColor(.red)
+                        HStack(spacing: 4) {
+                            Image(systemName: "mappin")
+                                .font(.system(size: 40))
+                                .foregroundColor(.red)
+                            
+                            Text(place.mapItem.name ?? "Location")
+                                .font(.headline)
+                                .padding(8)
+                                .background(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .shadow(radius: 3)
+                        }
                     }
                 }
                 if let route = route {
@@ -59,94 +108,39 @@ struct ContentView: View {
             }
             .ignoresSafeArea()
 
-            mainInterface
-        }
-        .sheet(isPresented: $isShowingRoutePlanner) {
-            RoutePlannerView(
-                isShowing: $isShowingRoutePlanner,
-                onGetDirections: { from, to in
-                    calculateRoute(from: from, to: to)
-                },
-                userLocation: locationManager.location
-            )
-            .presentationDetents([.fraction(0.75)])
+            mainMapInterface
         }
     }
     
-    private var mainInterface: some View {
+    private var mainMapInterface: some View {
         ZStack {
             VStack(spacing: 0) {
                 // The search bar and route button are now in a horizontal stack.
                 HStack {
-                    // This VStack will contain the search bar and the results list.
-                    VStack(spacing: 4) {
-                        //<--START-->
-                        // This HStack contains the search bar elements.
-                        HStack(spacing: 12) {
-                            Image(systemName: "magnifyingglass")
-                            
-                            // We use a ZStack to toggle between a single-line TextField for input
-                            // and a multi-line Text view for displaying the selected location.
-                            ZStack(alignment: .leading) {
-                                if isLocationSelected {
-                                    Text(searchText)
-                                        .foregroundColor(.blue)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                } else {
-                                    TextField("Search for a destination", text: $searchText)
-                                        .onChange(of: searchText) {
-                                            isLocationSelected = false
-                                            searchService.queryFragment = searchText
-                                        }
-                                }
+                    // This HStack contains the search bar elements.
+                    HStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                        
+                        TextField("Search for a destination", text: $searchText)
+                            .foregroundColor(isLocationSelected ? .blue : .primary)
+                            .onChange(of: searchText) {
+                                isLocationSelected = false
+                                searchService.queryFragment = searchText
                             }
 
-                            // The clear button still appears inside the text field.
-                            if !searchText.isEmpty {
-                                Button(action: {
-                                    searchText = ""
-                                    searchService.searchResults = []
-                                    isLocationSelected = false
-                                }) {
-                                    Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
-                                }
+                        // The clear button still appears inside the text field.
+                        if !searchText.isEmpty {
+                            Button(action: {
+                                searchText = ""
+                                searchService.searchResults = []
+                                isLocationSelected = false
+                            }) {
+                                Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
                             }
                         }
-                        .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-                        .background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
-                        
-                        // The search results list.
-                        if !searchText.isEmpty && !isLocationSelected {
-                            VStack(spacing: 0) {
-                                ForEach(searchService.searchResults) { result in
-                                    Button(action: { handleMainSearchSelection(result.completion) }) {
-                                        HStack {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(result.completion.title)
-                                                    .font(.headline)
-                                                    .foregroundColor(.primary)
-                                                Text(result.completion.subtitle)
-                                                    .font(.subheadline)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                            Spacer()
-                                            Text(result.distance)
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        .padding()
-                                    }
-                                    .buttonStyle(.plain)
-                                    
-                                    if result != searchService.searchResults.last { Divider().padding(.horizontal) }
-                                }
-                            }
-                            .background(.thinMaterial)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .shadow(radius: 5, y: 3)
-                        }
-                        //<--END-->
                     }
+                    .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                    .background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
                     
                     // The "Route to location" button is now outside the search bar.
                     Button(action: { searchAndRoute(to: searchText) }) {
@@ -158,6 +152,38 @@ struct ContentView: View {
                 }
                 .padding(.horizontal).padding(.top)
 
+                if !searchText.isEmpty && !isLocationSelected {
+                    VStack(spacing: 0) {
+                        ForEach(searchService.searchResults) { result in
+                            Button(action: { handleMainSearchSelection(result.completion) }) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(result.completion.title)
+                                            .font(.headline)
+                                            .foregroundColor(.primary)
+                                        Text(result.completion.subtitle)
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Text(result.distance)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding()
+                            }
+                            .buttonStyle(.plain)
+                            
+                            if result != searchService.searchResults.last { Divider().padding(.horizontal) }
+                        }
+                    }
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(radius: 5, y: 3)
+                    .padding(.horizontal)
+                    .padding(.top, 4)
+                }
+                
                 Spacer()
             }
             .onChange(of: locationManager.location) {
@@ -186,29 +212,30 @@ struct ContentView: View {
                     }.padding().padding(.bottom, 35.0)
                 }
             }
-            
-            VStack(spacing: 0) {
-                Spacer()
-                Divider()
-                HStack(alignment: .bottom) {
-                    navBarButton(icon: "figure.walk.motion", text: "Journey", tab: .journey, size:22)
-                    navBarButton(icon: "map.fill", text: "Map", tab: .map)
-                    navBarButton(icon: "tram.fill", text: "Route", tab: .route, size: 22)
-                    navBarButton(icon: "gear", text: "Settings", tab: .settings)
-                }
-                .padding(.top, 8.0).padding(.bottom, 12.0).padding(.horizontal, 17)
-                .frame(maxWidth: .infinity).background(.thinMaterial)
-                .clipShape(.rect(topLeadingRadius: 25, topTrailingRadius: 25))
-            }.ignoresSafeArea()
         }
     }
     
+    // The bottom navigation bar view.
+    private var bottomNavBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(alignment: .bottom) {
+                navBarButton(icon: "figure.walk.motion", text: "Journey", tab: .journey, size:22)
+                navBarButton(icon: "map.fill", text: "Map", tab: .map)
+                navBarButton(icon: "tram.fill", text: "Route", tab: .route, size: 22)
+                navBarButton(icon: "gear", text: "Settings", tab: .settings)
+            }
+            .padding(.top, 8.0).padding(.bottom, 12.0).padding(.horizontal, 17)
+            .frame(maxWidth: .infinity)
+            .background(.thinMaterial)
+            .clipShape(.rect(topLeadingRadius: 25, topTrailingRadius: 25))
+        }
+    }
+
+    // Helper function to create a standard navigation bar button.
     private func navBarButton(icon: String, text: String, tab: Tab, size: CGFloat = 24) -> some View {
         Button(action: {
             selectedTab = tab
-            if tab == .route {
-                isShowingRoutePlanner = true
-            }
         }) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
