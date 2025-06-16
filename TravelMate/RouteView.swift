@@ -6,9 +6,10 @@ struct RouteView: View {
     
     // ViewModel to manage the state and logic for this view.
     @StateObject private var viewModel = RouteViewModel()
-    
-    // This view now has its own location manager to be self-contained.
-    @StateObject private var locationManager = LocationManager()
+    @EnvironmentObject private var locationManager: LocationManager
+
+    // Closure to pass the selected locations back to the parent view.
+    var onGetDirections: (MKMapItem, MKMapItem) -> Void
     
     // State for the map's camera position within this view.
     @State private var position: MapCameraPosition = .automatic
@@ -23,14 +24,9 @@ struct RouteView: View {
         // The main ZStack allows UI elements to be layered on top of the map.
         ZStack {
             // A dedicated map for the route planning view.
-            Map(position: $position) {
-                // Draw the calculated route if it exists.
-                if let route = viewModel.route {
-                    MapPolyline(route)
-                        .stroke(.blue, lineWidth: 5)
-                }
-            }
-            .ignoresSafeArea()
+            Map(position: $position)
+            // Route drawing is now handled by the main map view.
+            // .ignoresSafeArea() // Removed to respect safe areas, especially for bottom nav bar
             
             //<--START-->
             // The main UI is now in a single VStack for a simpler, more reliable layout.
@@ -50,6 +46,7 @@ struct RouteView: View {
                             ZStack(alignment: .trailing) {
                                 TextField("Search or use current location", text: $viewModel.fromText)
                                     .textFieldStyle(.roundedBorder)
+                                    .foregroundColor(viewModel.selectedFromResult != nil ? .blue : .primary)
                                     .focused($focusedField, equals: .from)
                                 
                                 HStack {
@@ -76,6 +73,7 @@ struct RouteView: View {
                             ZStack(alignment: .trailing) {
                                 TextField("Search for a destination", text: $viewModel.toText)
                                     .textFieldStyle(.roundedBorder)
+                                    .foregroundColor(viewModel.selectedToResult != nil ? .blue : .primary)
                                     .focused($focusedField, equals: .to)
                                 
                                 if !viewModel.toText.isEmpty {
@@ -104,16 +102,20 @@ struct RouteView: View {
                 
                 // "Get Directions" button
                 Button(action: {
-                    viewModel.getDirections()
+                    if let from = viewModel.fromItem, let to = viewModel.toItem {
+                        onGetDirections(from, to)
+                    }
                 }) {
                     Text("Get Directions")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                 }
                 .padding()
+                // .padding(.bottom, 60) // Removed as main VStack will now have bottom padding
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.fromItem == nil || viewModel.toItem == nil)
             }
+            .padding(.bottom, 40) // Added padding to lift entire content above nav bar
             .background(Color(UIColor.systemGroupedBackground))
             .contentShape(Rectangle())
             .onTapGesture { focusedField = nil }
@@ -124,15 +126,10 @@ struct RouteView: View {
             viewModel.toSearchService.currentLocation = locationManager.location
             focusedField = .from
         }
-        .onChange(of: viewModel.route) {
-            if let route = viewModel.route {
-                // Correctly access the boundingMapRect directly from the route object.
-                let rect = route.boundingMapRect.insetBy(dx: -500, dy: -500)
-                let region = MKCoordinateRegion(rect)
-                withAnimation {
-                    self.position = .region(region)
-                }
-            }
+
+        .onChange(of: locationManager.location) {
+            viewModel.fromSearchService.currentLocation = locationManager.location
+            viewModel.toSearchService.currentLocation = locationManager.location
         }
     }
 
@@ -145,15 +142,15 @@ struct RouteView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(result.completion.title)
                                 .font(.headline)
-                                .foregroundColor(.primary)
+                                .foregroundColor(.primary) // Reverted to default
                             Text(result.completion.subtitle)
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.secondary) // Reverted to default
                         }
                         Spacer()
                         Text(result.distance)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.secondary) // Reverted to default
                     }
                     .padding()
                 }
@@ -167,10 +164,12 @@ struct RouteView: View {
         .background(.thinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(radius: 5, y: 3)
-        .padding(.horizontal)
+        .padding(.all)
     }
 }
 
 #Preview {
-    ContentView()
+    // Provide a dummy closure for the preview and a LocationManager instance.
+    RouteView { _, _ in print("Get Directions tapped in preview") }
+        .environmentObject(LocationManager())
 }
