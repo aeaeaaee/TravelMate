@@ -13,7 +13,7 @@ struct IdentifiablePlace: Identifiable {
 }
 
 // Main View for the application
-struct ContentView: View {
+struct MapView: View {
     @StateObject private var locationManager = LocationManager()
     @StateObject private var searchService = LocationSearchService()
     
@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var isLocationSelected = false // Tracks if a location is selected in the main search
     @State private var isInitialLocationSet = false // Tracks if the map has centered on the initial location.
     @State private var isSelectionInProgress = false
+    @State private var visibleRegion: MKCoordinateRegion? // Tracks the map's visible region
 
     // An enum and state property to manage the focus state of the main search bar.
     private enum SearchField: Hashable {
@@ -68,13 +69,23 @@ struct ContentView: View {
             }
             .ignoresSafeArea() // Allow nav bar to go to the bottom edge
         }
+        .onChange(of: selectedTab) { oldValue, newValue in
+            // Clear the route only when navigating away from map-related views.
+            if newValue == .journey || newValue == .settings {
+                route = nil
+                fromRouteMapItem = nil
+                toRouteMapItem = nil
+                searchText = "" // Clear MapView's search text
+                selectedPlace = nil // Clear MapView's selected place pin
+            }
+        }
         .onChange(of: locationManager.location) {
             // This modifier watches for the first location update from the locationManager.
             if let userLocation = locationManager.location, !isInitialLocationSet {
                 // Center the map on the user's current location.
                 let userRegion = MKCoordinateRegion(
                     center: userLocation.coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02) // More zoomed-in span
+                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01) // More zoomed-in span
                 )
                 withAnimation {
                     position = .region(userRegion)
@@ -95,34 +106,31 @@ struct ContentView: View {
                     // The Annotation now includes a text label next to the pin.
                     Annotation(place.mapItem.name ?? "Location", coordinate: place.mapItem.placemark.coordinate) {
                         HStack(spacing: 4) {
-                            Image(systemName: "mappin")
+                            Image(systemName: "mappin.circle.fill")
                                 .font(.system(size: 40))
                                 .foregroundColor(.red)
-                            
-                            Text(place.mapItem.name ?? "Location")
-                                .font(.headline)
-                                .padding(8)
-                                .background(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .shadow(radius: 3)
+
                         }
                     }
                 }
-                // User's current location marker.
-                if let userLocation = locationManager.location {
-                    Marker("My Location", coordinate: userLocation.coordinate)
-                }
+
 
                 // Display the 'From' marker if it exists.
                 if let fromItem = fromRouteMapItem {
-                    Marker(item: fromItem)
-                        .tint(.blue) // Blue for 'From'
+                    Annotation(fromItem.name ?? "From", coordinate: fromItem.placemark.coordinate) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 40)) // Fixed size
+                            .foregroundColor(.blue)
+                    }
                 }
 
                 // Display the 'To' marker if it exists.
                 if let toItem = toRouteMapItem {
-                    Marker(item: toItem)
-                        .tint(.red) // Red for 'To'
+                    Annotation(toItem.name ?? "To", coordinate: toItem.placemark.coordinate) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 40)) // Fixed size
+                            .foregroundColor(.red)
+                    }
                 }
                 
                 // Display the calculated route if it exists.
@@ -132,6 +140,9 @@ struct ContentView: View {
                 }
             }
             .onTapGesture { focusedField = nil }
+            .onMapCameraChange { context in
+                visibleRegion = context.region
+            }
             .ignoresSafeArea()
             
             VStack {
@@ -250,12 +261,12 @@ struct ContentView: View {
         VStack(spacing: 0) {
             Divider()
             HStack(alignment: .bottom) {
-                navBarButton(icon: "figure.walk.motion", text: "Journey", tab: .journey, size:22)
                 navBarButton(icon: "map.fill", text: "Map", tab: .map)
                 navBarButton(icon: "tram.fill", text: "Route", tab: .route, size: 22)
+                navBarButton(icon: "figure.walk.motion", text: "Journey", tab: .journey, size:22)
                 navBarButton(icon: "gear", text: "Settings", tab: .settings)
             }
-            .padding(.top, 8.0).padding(.bottom, 12.0).padding(.horizontal, 17)
+            .padding(.top, 8.0).padding(.bottom, 18.0).padding(.horizontal, 17)
             .frame(maxWidth: .infinity)
             .background(
                 Rectangle()
@@ -358,15 +369,21 @@ struct ContentView: View {
             }
             DispatchQueue.main.async(execute: {
                 self.route = routeResponse.polyline // Changed self?.route to self.route
-                let rect = routeResponse.polyline.boundingMapRect.insetBy(dx: -500, dy: -500)
-                let region = MKCoordinateRegion(rect)
-                withAnimation { self.position = .region(region) }
+                // Convert the route's bounding box to a region
+                var region = MKCoordinateRegion(routeResponse.polyline.boundingMapRect)
+                // Zoom out by increasing the span by 40%
+                region.span.latitudeDelta *= 1.4
+                region.span.longitudeDelta *= 1.4
+
+                withAnimation {
+                    self.position = .region(region)
+                }
             })
         }
     }
     
     private func zoom(in zoomIn: Bool) {
-        guard let currentRegion = position.region else { return }
+        guard let currentRegion = visibleRegion else { return }
         let factor = zoomIn ? 0.5 : 2
         let newSpan = MKCoordinateSpan(latitudeDelta: currentRegion.span.latitudeDelta * factor, longitudeDelta: currentRegion.span.longitudeDelta * factor)
         let newRegion = MKCoordinateRegion(center: currentRegion.center, span: newSpan)
@@ -375,5 +392,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    MapView()
 }
