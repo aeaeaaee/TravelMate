@@ -15,7 +15,7 @@ struct IdentifiablePlace: Identifiable {
 // Main View for the application
 struct MapView: View {
     @StateObject private var locationManager = LocationManager()
-        @StateObject private var searchService = LocationSearchService()
+    @StateObject private var searchService = LocationSearchService()
     @StateObject private var routeViewModel = RouteViewModel()
     
     @State private var searchText = ""
@@ -26,6 +26,14 @@ struct MapView: View {
     @State private var isInitialLocationSet = false // Tracks if the map has centered on the initial location.
     @State private var isSelectionInProgress = false
     @State private var visibleRegion: MKCoordinateRegion? // Tracks the map's visible region
+
+    // State for Location Detail sheet
+    @State private var showLocationDetailSheet: Bool = false
+    @State private var sheetDetent: Detent = .half // Default detent
+
+    // State for alert when trying to view details without a selection
+    @State private var showAlertForNoSelection: Bool = false
+    @State private var alertMessage: String = ""
 
     // An enum and state property to manage the focus state of the main search bar.
     private enum SearchField: Hashable {
@@ -65,6 +73,25 @@ struct MapView: View {
                 bottomNavBar
             }
             .ignoresSafeArea() // Allow nav bar to go to the bottom edge
+        }
+        .alert("Invalid Search", isPresented: $showAlertForNoSelection) {
+            Button("OK") { }
+        } message: {
+            Text(alertMessage)
+        }
+        .bottomSheet(isPresented: $showLocationDetailSheet, currentDetent: $sheetDetent, onDismiss: {
+            // Don't clear selectedPlace to cache the last selection.
+            // Reset detent to default for next presentation.
+            sheetDetent = .half
+        }) {
+            if let place = selectedPlace {
+                LocationView(selectedTab: $selectedTab, mapItem: place.mapItem)
+                    .environmentObject(routeViewModel)
+            } else {
+                // Fallback content if selectedPlace is somehow nil when sheet is shown
+                Text("No location details available.")
+                    .padding()
+            }
         }
         .onChange(of: routeViewModel.selectedRoute) { _, newSelectedRoute in
             if let route = newSelectedRoute {
@@ -175,13 +202,19 @@ struct MapView: View {
             VStack(spacing: 0) {
                 HStack {
                     HStack(spacing: 12) {
-                        Image(systemName: "magnifyingglass")
-                        
+
                         TextField("Search for a destination", text: $searchText)
                             .foregroundColor(isLocationSelected ? .blue : .primary)
                             .focused($focusedField, equals: .main)
                             .onChange(of: searchText) {
-                                if !isSelectionInProgress { isLocationSelected = false }
+                                // If user is typing a new search, reset selection state
+                                if !isSelectionInProgress {
+                                    isLocationSelected = false
+                                }
+                                // If text is fully cleared, also remove the map pin
+                                if searchText.isEmpty && !isSelectionInProgress {
+                                    selectedPlace = nil
+                                }
                                 searchService.queryFragment = searchText
                             }
 
@@ -190,16 +223,35 @@ struct MapView: View {
                                 searchText = ""
                                 searchService.searchResults = []
                                 isLocationSelected = false
+                                focusedField = .main // Keep focus on text field after clearing
                             }) {
                                 Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
                             }
                         }
+                        // Info button to show location details
+                        Button {
+                            if isLocationSelected, selectedPlace != nil {
+                                showLocationDetailSheet = true
+                                print("Info button tapped for: \(selectedPlace?.mapItem.name ?? "Selected Place")")
+                            } else {
+                                alertMessage = "Please select a location from the search results first, or search for a location."
+                                showAlertForNoSelection = true
+                                print("Info button tapped, but no location is selected.")
+                            }
+                            focusedField = nil // Dismiss keyboard after tapping info button
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.gray) // Consistent icon color
+                                .padding(8)
+                        }
+                        .disabled(searchText.isEmpty && !isLocationSelected) // Keep disabled logic if appropriate
                     }
-                    .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-                    .background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
+                    .padding(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                    .background(Color(UIColor.systemBackground)).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
                     
+                    // This is the "Directions/Go" button, separate from the TextField's internal buttons
                     Button(action: { searchAndRoute(to: searchText) }) {
-                        Image(systemName: "arrow.triangle.turn.up.right.circle.fill")
+                        Image(systemName: "arrow.right.circle.fill")
                             .font(.system(size: 32))
                             .foregroundColor(.accentColor)
                     }

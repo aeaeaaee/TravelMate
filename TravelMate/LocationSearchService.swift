@@ -102,4 +102,14 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
     func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
         print("MKLocalSearchCompleter Error: \(error.localizedDescription)")
     }
+
+    // Generates a web search URL for the given query.
+    func generateWebSearchURL(for query: String) -> URL? {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+        // Using Google search as a common example. This can be changed to any search engine.
+        return URL(string: "https://www.google.com/search?q=\(encodedQuery)")
+    }
 }
