@@ -29,9 +29,22 @@
 		181A2A042DF5629100CA1A4A /* TravelMateUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TravelMateUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		1816461C2E05AA1A005AEA32 /* Exceptions for "TravelMate" folder in "TravelMate" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 181A29EC2DF5629000CA1A4A /* TravelMate */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		181A29EF2DF5629000CA1A4A /* TravelMate */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				1816461C2E05AA1A005AEA32 /* Exceptions for "TravelMate" folder in "TravelMate" target */,
+			);
 			path = TravelMate;
 			sourceTree = "<group>";
 		};
@@ -397,6 +410,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TravelMate/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TravelMate;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app will need your location in order to show it on the map.";
@@ -431,6 +445,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TravelMate/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TravelMate;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app will need your location in order to show it on the map.";
