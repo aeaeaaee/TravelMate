@@ -6,10 +6,9 @@ struct RouteView: View {
     
     // ViewModel to manage the state and logic for this view.
     @StateObject private var viewModel = RouteViewModel()
-    @EnvironmentObject private var locationManager: LocationManager
-
-    // Closure to pass the selected locations back to the parent view.
-    var onGetDirections: (MKMapItem, MKMapItem) -> Void
+    
+    // This view now has its own location manager to be self-contained.
+    @StateObject private var locationManager = LocationManager()
     
     // State for the map's camera position within this view.
     @State private var position: MapCameraPosition = .automatic
@@ -88,6 +87,21 @@ struct RouteView: View {
                             .gridCellColumns(2)
                         }
                     }
+
+                    // Picker for selecting the mode of transport.
+                    Picker("Transport Type", selection: $viewModel.transportType) {
+                        ForEach(TransportType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.vertical, 4)
+
+                    // Section to display calculated route options
+                    if !viewModel.routes.isEmpty {
+                        routeOptionsSection
+                    }
+
                 }
                 .padding(.horizontal)
                 
@@ -100,19 +114,18 @@ struct RouteView: View {
                 
                 Spacer()
                 
-                // "Get Directions" button
+                // "Get Directions" / "Show Selected Route" button
                 Button(action: {
-                    if let from = viewModel.fromItem, let to = viewModel.toItem {
-                        onGetDirections(from, to)
-                    }
+                    viewModel.getDirections()
                 }) {
-                    Text("Get Directions")
+                    Text(viewModel.selectedRoute == nil ? "Get Directions" : "Show Selected Route on Map")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                 }
                 .padding()
                 // .padding(.bottom, 60) // Removed as main VStack will now have bottom padding
                 .buttonStyle(.borderedProminent)
+                // Disable button if 'From' or 'To' is not set, OR if calculating routes (selectedRoute is nil) and already tried.
                 .disabled(viewModel.fromItem == nil || viewModel.toItem == nil)
             }
             .padding(.bottom, 40) // Added padding to lift entire content above nav bar
@@ -126,11 +139,17 @@ struct RouteView: View {
             viewModel.toSearchService.currentLocation = locationManager.location
             focusedField = .from
         }
-
-        .onChange(of: locationManager.location) {
-            viewModel.fromSearchService.currentLocation = locationManager.location
-            viewModel.toSearchService.currentLocation = locationManager.location
+        .onChange(of: viewModel.route) {
+            if let route = viewModel.route {
+                // Correctly access the boundingMapRect directly from the route object.
+                let rect = route.boundingMapRect.insetBy(dx: -500, dy: -500)
+                let region = MKCoordinateRegion(rect)
+                withAnimation {
+                    self.position = .region(region)
+                }
+            }
         }
+        .padding(.top)
     }
 
     // A reusable helper view for the search result dropdowns.
@@ -161,7 +180,7 @@ struct RouteView: View {
                 }
             }
         }
-        .background(.thinMaterial)
+        .background(.thickMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(radius: 5, y: 3)
         .padding(.all)
@@ -169,7 +188,5 @@ struct RouteView: View {
 }
 
 #Preview {
-    // Provide a dummy closure for the preview and a LocationManager instance.
-    RouteView { _, _ in print("Get Directions tapped in preview") }
-        .environmentObject(LocationManager())
+    ContentView()
 }

@@ -12,14 +12,22 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     @Published var location: CLLocation?
     @Published var heading: CLHeading?
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> V2
     override init() {
         super.init()
         self.locationManager.delegate = self
         self.locationManager.desiredAccuracy = kCLLocationAccuracyBest
         self.locationManager.requestWhenInUseAuthorization()
         self.locationManager.startUpdatingLocation()
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> V2
         // Start updating heading if available
         if CLLocationManager.headingAvailable() {
             self.locationManager.startUpdatingHeading()
@@ -32,7 +40,11 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         guard let location = locations.last else { return }
         self.location = location
     }
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> V2
     // Delegate method for heading updates
     func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
         // We only want to receive heading updates if the accuracy is good

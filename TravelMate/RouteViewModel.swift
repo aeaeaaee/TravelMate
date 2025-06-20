@@ -3,18 +3,68 @@ import MapKit
 import Combine
 
 // ViewModel to contain all the logic for the RoutePlannerView.
+
+// Enum for different transport options, conforming to CaseIterable and Identifiable for Picker use.
+enum TransportType: String, CaseIterable, Identifiable {
+    case car = "Car"
+    case transit = "Public Transit"
+    case walking = "Walk"
+    
+    var id: String { self.rawValue }
+    
+    // Computed property to get the corresponding MapKit transport type.
+    var systemImageName: String {
+        switch self {
+        case .car:
+            return "car.fill"
+        case .transit:
+            return "tram.fill"
+        case .walking:
+            return "figure.walk"
+        }
+    }
+
+    var mkTransportType: MKDirectionsTransportType {
+        switch self {
+        case .car:
+            return .automobile
+        case .transit:
+            return .transit
+        case .walking:
+            return .walking
+        }
+    }
+}
+
 class RouteViewModel: ObservableObject {
     
     // Published properties to hold the state, which the View will observe.
     @Published var fromText = ""
     @Published var toText = ""
+    @Published var transportType: TransportType = .car
     
     @Published var fromItem: MKMapItem?
     @Published var toItem: MKMapItem?
+    @Published var routes: [MKRoute] = []
+    @Published var selectedRoute: MKRoute? = nil
     
+<<<<<<< HEAD
     // Store the actual selected MKLocalSearchCompletion objects
     @Published var selectedFromResult: MKLocalSearchCompletion? = nil
     @Published var selectedToResult: MKLocalSearchCompletion? = nil
+=======
+    @Published var selectedFromResult: MKLocalSearchCompletion? = nil
+    @Published var selectedToResult: MKLocalSearchCompletion? = nil
+
+    // MARK: - Helper Functions
+
+    func formattedTravelTime(time: TimeInterval) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .short // e.g., "1h 10m" or "25m"
+        return formatter.string(from: time) ?? ""
+    }
+>>>>>>> V2
     
     // Services for handling search completions for the "From" and "To" fields.
     @Published var fromSearchService = LocationSearchService()
@@ -28,10 +78,17 @@ class RouteViewModel: ObservableObject {
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
                 guard let self = self else { return }
+<<<<<<< HEAD
                 
                 let currentSelectedFullText = (self.selectedFromResult?.title ?? "") +
                 (self.selectedFromResult?.subtitle.isEmpty == false ? ", \(self.selectedFromResult?.subtitle ?? "")" : "")
                 
+=======
+
+                let currentSelectedFullText = (self.selectedFromResult?.title ?? "") +
+                                              (self.selectedFromResult?.subtitle.isEmpty == false ? ", \(self.selectedFromResult?.subtitle ?? "")" : "")
+
+>>>>>>> V2
                 if newText == currentSelectedFullText && self.selectedFromResult != nil {
                     // Text matches the selected item, and an item is indeed selected.
                     // This means the text field was populated by a selection.
@@ -51,10 +108,17 @@ class RouteViewModel: ObservableObject {
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
                 guard let self = self else { return }
+<<<<<<< HEAD
                 
                 let currentSelectedFullText = (self.selectedToResult?.title ?? "") +
                 (self.selectedToResult?.subtitle.isEmpty == false ? ", \(self.selectedToResult?.subtitle ?? "")" : "")
                 
+=======
+
+                let currentSelectedFullText = (self.selectedToResult?.title ?? "") +
+                                              (self.selectedToResult?.subtitle.isEmpty == false ? ", \(self.selectedToResult?.subtitle ?? "")" : "")
+
+>>>>>>> V2
                 if newText == currentSelectedFullText && self.selectedToResult != nil {
                     // Text matches the selected item, and an item is indeed selected.
                     // Do NOT trigger a new search.
@@ -88,8 +152,7 @@ class RouteViewModel: ObservableObject {
                 if let error = error { print("Search Error: \(error)") }
                 return
             }
-            
-            // Update the correct field based on the 'forFromField' boolean.
+            // MARK: - Private Methods for Search Logic
             DispatchQueue.main.async {
                 let fullText = completion.title + (completion.subtitle.isEmpty ? "" : ", \(completion.subtitle)")
                 if forFromField {
@@ -106,4 +169,41 @@ class RouteViewModel: ObservableObject {
             }
         }
     }
+<<<<<<< HEAD
+=======
+
+    func calculateRoutes(completion: @escaping (Bool) -> Void) {
+        self.selectedRoute = nil // Clear previously selected route
+        guard let from = fromItem, let to = toItem else {
+            completion(false)
+            return
+        }
+
+        let request = MKDirections.Request()
+        request.source = from
+        request.destination = to
+        request.transportType = self.transportType.mkTransportType
+        request.requestsAlternateRoutes = true
+
+        let directions = MKDirections(request: request)
+        directions.calculate { response, error in
+            guard let response = response, !response.routes.isEmpty else {
+                if let error = error {
+                    print("Route calculation error: \(error.localizedDescription)")
+                }
+                DispatchQueue.main.async {
+                    self.routes = []
+                    completion(false)
+                }
+                return
+            }
+
+            DispatchQueue.main.async {
+                let sortedRoutes = response.routes.sorted { $0.expectedTravelTime < $1.expectedTravelTime }
+                self.routes = Array(sortedRoutes.prefix(3))
+                completion(true)
+            }
+        }
+    }
+>>>>>>> V2
 }
