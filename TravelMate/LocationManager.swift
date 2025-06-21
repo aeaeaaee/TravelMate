@@ -1,10 +1,3 @@
-//
-//  LocationManager.swift
-//  TravelMate
-//
-//  Created by user277469 on 6/8/25.
-//
-
 import Foundation
 import CoreLocation
 
