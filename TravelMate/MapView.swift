@@ -21,6 +21,7 @@ struct MapView: View {
     @State private var searchText = ""
     @State private var position: MapCameraPosition = .automatic
     @State private var selectedPlace: IdentifiablePlace?
+    @State private var selection: MKMapItem?
 
     @State private var isLocationSelected = false // Tracks if a location is selected in the main search
     @State private var isInitialLocationSet = false // Tracks if the map has centered on the initial location.
@@ -113,6 +114,14 @@ struct MapView: View {
                 // For now, we do nothing, map stays as is or follows user location if no route selected.
             }
         }
+        .onChange(of: selection) { _, newSelection in
+            if let newSelection {
+                print("DEBUG: POI selected - \(newSelection.name ?? "Unknown") at \(newSelection.placemark.coordinate)")
+                // When a POI is selected, wrap it and show the detail sheet.
+                self.selectedPlace = IdentifiablePlace(mapItem: newSelection)
+                self.showLocationDetailSheet = true
+            }
+        }
         .onChange(of: selectedTab) { oldValue, newValue in
             // Clear the route only when navigating away from map-related views.
             if newValue == .journey || newValue == .settings {
@@ -143,7 +152,7 @@ struct MapView: View {
     // The view content for the "Map" tab.
     private var mapView: some View {
         ZStack {
-            Map(position: $position) {
+            Map(position: $position, selection: $selection) {
                 UserAnnotation()
                 
                 // Show single selected place only if no routes are active.
@@ -180,7 +189,7 @@ struct MapView: View {
                         .stroke(Color.blue, lineWidth: 5)
                 }
             }
-            .onTapGesture { focusedField = nil }
+            .mapStyle(.standard(showsTraffic: true))
             .onMapCameraChange { context in
                 visibleRegion = context.region
             }
@@ -192,6 +201,7 @@ struct MapView: View {
                 Spacer()
             }
             .ignoresSafeArea()
+            .allowsHitTesting(false)
 
             mainMapInterface
         }
