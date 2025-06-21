@@ -21,6 +21,7 @@ struct MapView: View {
     @State private var searchText = ""
     @State private var position: MapCameraPosition = .automatic
     @State private var selectedPlace: IdentifiablePlace?
+    @State private var selection: MKMapItem?
 
     @State private var isLocationSelected = false // Tracks if a location is selected in the main search
     @State private var isInitialLocationSet = false // Tracks if the map has centered on the initial location.
@@ -113,6 +114,21 @@ struct MapView: View {
                 // For now, we do nothing, map stays as is or follows user location if no route selected.
             }
         }
+        .onChange(of: selection) { _, newSelection in
+            if let newSelection {
+                print("DEBUG: POI selected - \(newSelection.name ?? "Unknown") at \(newSelection.placemark.coordinate)")
+                // When a POI is selected, wrap it and show the detail sheet.
+                self.selectedPlace = IdentifiablePlace(mapItem: newSelection)
+                self.showLocationDetailSheet = true
+                
+                // Recenter the SwiftUI camera binding so UIKit doesn’t later snap back.
+                let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                let region = MKCoordinateRegion(center: newSelection.placemark.coordinate, span: span)
+                withAnimation {
+                    self.position = .region(region)
+                }
+            }
+        }
         .onChange(of: selectedTab) { oldValue, newValue in
             // Clear the route only when navigating away from map-related views.
             if newValue == .journey || newValue == .settings {
@@ -143,47 +159,34 @@ struct MapView: View {
     // The view content for the "Map" tab.
     private var mapView: some View {
         ZStack {
-            Map(position: $position) {
-                UserAnnotation()
-                
-                // Show single selected place only if no routes are active.
+            // UIKit-backed map view with native POI tap support
+            let annotations: [CustomPointAnnotation] = {
+                var points: [CustomPointAnnotation] = []
                 if routeViewModel.routes.isEmpty, let place = selectedPlace {
-                    Annotation(place.mapItem.name ?? "Location", coordinate: place.mapItem.placemark.coordinate) {
-                        HStack(spacing: 4) {
-                            Text(place.mapItem.name ?? "")
-                                .font(.caption).padding(6).background(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 8)).shadow(radius: 2, y: 1)
-                            Image(systemName: "mappin.circle.fill")
-                                .font(.system(size: 40)).foregroundColor(.red)
-                        }
-                    }
+                    points.append(CustomPointAnnotation(mapItem: place.mapItem))
                 }
-
-                // Display route markers if routes are available.
-                if let fromItem = routeViewModel.fromItem {
-                    Annotation(fromItem.name ?? "From", coordinate: fromItem.placemark.coordinate) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 40)).foregroundColor(.blue)
-                    }
+                if let from = routeViewModel.fromItem {
+                    points.append(CustomPointAnnotation(mapItem: from))
                 }
-
-                if let toItem = routeViewModel.toItem {
-                    Annotation(toItem.name ?? "To", coordinate: toItem.placemark.coordinate) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 40)).foregroundColor(.red)
-                    }
+                if let to = routeViewModel.toItem {
+                    points.append(CustomPointAnnotation(mapItem: to))
                 }
-
-                // Display the selected route if available.
-                if let selectedRoute = routeViewModel.selectedRoute {
-                    MapPolyline(selectedRoute.polyline)
-                        .stroke(Color.blue, lineWidth: 5)
+                return points
+            }()
+            
+            UIKitMapView(
+                annotations: annotations,
+                route: routeViewModel.selectedRoute,
+                position: $position,
+                onSelect: { mapItem in
+                    self.selection = mapItem
+                },
+                onRegionChange: { region in
+                    // Track visible region for zoom buttons; we intentionally do NOT update `position` here to avoid feedback loops that lock panning.
+                    self.visibleRegion = region
+                    self.position = .automatic
                 }
-            }
-            .onTapGesture { focusedField = nil }
-            .onMapCameraChange { context in
-                visibleRegion = context.region
-            }
+            )
             .ignoresSafeArea()
             
             VStack {
@@ -192,9 +195,14 @@ struct MapView: View {
                 Spacer()
             }
             .ignoresSafeArea()
+            .allowsHitTesting(false)
 
             mainMapInterface
         }
+        // Dismiss keyboard and disable editing when tapping anywhere outside the search field.
+        .simultaneousGesture(TapGesture().onEnded {
+            self.focusedField = nil
+        })
     }
     
     private var mainMapInterface: some View {
