@@ -99,9 +99,6 @@ struct UIKitMapView: UIViewRepresentable {
         // POI / Annotation selection
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
             guard let annotation = view.annotation else { return }
-            #if DEBUG
-            print("DEBUG: didSelect annotation \(annotation.title ?? "") – custom: \(annotation is CustomPointAnnotation)")
-            #endif
             // Center map on the tapped annotation while keeping current zoom span
             let currentSpan = mapView.region.span
             let newRegion = MKCoordinateRegion(center: annotation.coordinate, span: currentSpan)
@@ -113,11 +110,26 @@ struct UIKitMapView: UIViewRepresentable {
             if let custom = annotation as? CustomPointAnnotation {
                 parent.onSelect(custom.mapItem)
             } else {
-                // Native POI – create a basic MKMapItem from coordinate & title
-                let placemark = MKPlacemark(coordinate: annotation.coordinate)
-                let item = MKMapItem(placemark: placemark)
-                item.name = annotation.title ?? ""
-                parent.onSelect(item)
+                // Native POI – first send a simple placemark so UI responds instantly & no zoom jump
+                let coord = annotation.coordinate
+                let initialPlacemark = MKPlacemark(coordinate: coord)
+                let initialItem = MKMapItem(placemark: initialPlacemark)
+                initialItem.name = annotation.title ?? ""
+                parent.onSelect(initialItem)
+                
+                // Then, asynchronously perform a narrow MKLocalSearch to obtain richer address details.
+                if let title = annotation.title ?? nil, !title.isEmpty {
+                    let request = MKLocalSearch.Request()
+                    request.naturalLanguageQuery = title
+                    request.region = MKCoordinateRegion(center: coord,
+                                                        latitudinalMeters: 500,
+                                                        longitudinalMeters: 500)
+                    MKLocalSearch(request: request).start { [weak self] response, _ in
+                        guard let self = self, let refinedItem = response?.mapItems.first else { return }
+                        // Pass the refined map item to update address in the sheet; this does not change camera.
+                        self.parent.onSelect(refinedItem)
+                    }
+                }
             }
         }
 

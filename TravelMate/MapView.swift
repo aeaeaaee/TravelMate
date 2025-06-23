@@ -116,11 +116,14 @@ struct MapView: View {
         }
         .onChange(of: selection) { _, newSelection in
             if let newSelection {
-                print("DEBUG: POI selected - \(newSelection.name ?? "Unknown") at \(newSelection.placemark.coordinate)")
+                
                 // When a POI is selected, wrap it and show the detail sheet.
                 self.selectedPlace = IdentifiablePlace(mapItem: newSelection)
                 self.showLocationDetailSheet = true
 
+                // Mark that a location is selected but leave the search bar unchanged for map taps.
+                self.isLocationSelected = true
+                
                 // Recenter the SwiftUI camera binding so UIKit doesn’t later snap back.
                 let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                 let region = MKCoordinateRegion(center: newSelection.placemark.coordinate, span: span)
@@ -242,11 +245,11 @@ struct MapView: View {
                         Button {
                             if isLocationSelected, selectedPlace != nil {
                                 showLocationDetailSheet = true
-                                print("Info button tapped for: \(selectedPlace?.mapItem.name ?? "Selected Place")")
+                                
                             } else {
                                 alertMessage = "Please select a location from the search results first, or search for a location."
                                 showAlertForNoSelection = true
-                                print("Info button tapped, but no location is selected.")
+                                
                             }
                             focusedField = nil // Dismiss keyboard after tapping info button
                         } label: {
@@ -275,10 +278,10 @@ struct MapView: View {
                             Button(action: { handleMainSearchSelection(result.completion) }) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(result.completion.title)
+                                        Text(result.resolvedTitle ?? result.completion.title)
                                             .font(.headline)
                                             .foregroundColor(.primary)
-                                        Text(result.completion.subtitle)
+                                        Text(result.resolvedSubtitle ?? result.completion.subtitle)
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                     }
@@ -374,7 +377,7 @@ struct MapView: View {
         let search = MKLocalSearch(request: request)
         search.start { response, error in
             guard let mapItem = response?.mapItems.first else {
-                if let error = error { print("MKLocalSearch Error: \(error.localizedDescription)") }
+                
                 return
             }
             DispatchQueue.main.async {
@@ -387,7 +390,7 @@ struct MapView: View {
                     withAnimation { self.position = .region(newRegion) }
                 }
                 isSelectionInProgress = true
-                self.searchText = "\(completion.title), \(completion.subtitle)"
+                self.searchText = "\(mapItem.name ?? ""), \(mapItem.placemark.title ?? "")"
                 self.isLocationSelected = true
                 self.searchService.searchResults = []
                 
@@ -408,7 +411,7 @@ struct MapView: View {
         let search = MKLocalSearch(request: request)
         search.start { response, error in
             guard let destinationItem = response?.mapItems.first else {
-                if let error = error { print("Search failed for query '\(query)': \(error.localizedDescription)") }
+                
                 return
             }
             let sourceItem = MKMapItem(placemark: MKPlacemark(coordinate: userLocation.coordinate))
@@ -420,10 +423,8 @@ struct MapView: View {
                 self.routeViewModel.calculateRoutes { success in
                     // The onChange modifier on routes will handle camera changes.
                     if success {
-                        print("Routes found from main search.")
-                    } else {
-                        print("No routes found from main search.")
-                    }
+                        
+                    } 
                 }
                 
                 // Update UI
