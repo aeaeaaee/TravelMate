@@ -116,10 +116,12 @@ struct MapView: View {
         }
         .onChange(of: selection) { _, newSelection in
             if let newSelection {
-                print("DEBUG: POI selected - \(newSelection.name ?? "Unknown") at \(newSelection.placemark.coordinate)")
                 // When a POI is selected, wrap it and show the detail sheet.
                 self.selectedPlace = IdentifiablePlace(mapItem: newSelection)
                 self.showLocationDetailSheet = true
+                
+                // Mark that a location is selected but leave the search bar unchanged for map taps.
+                self.isLocationSelected = true
                 
                 // Recenter the SwiftUI camera binding so UIKit doesn’t later snap back.
                 let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
@@ -273,10 +275,10 @@ struct MapView: View {
                             Button(action: { handleMainSearchSelection(result.completion) }) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(result.completion.title)
+                                        Text(result.resolvedTitle ?? result.completion.title)
                                             .font(.headline)
                                             .foregroundColor(.primary)
-                                        Text(result.completion.subtitle)
+                                        Text(result.resolvedSubtitle ?? result.completion.subtitle)
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                     }
@@ -385,7 +387,7 @@ struct MapView: View {
                     withAnimation { self.position = .region(newRegion) }
                 }
                 isSelectionInProgress = true
-                self.searchText = "\(completion.title), \(completion.subtitle)"
+                self.searchText = "\(mapItem.name ?? ""), \(mapItem.placemark.title ?? "")"
                 self.isLocationSelected = true
                 self.searchService.searchResults = []
                 

@@ -8,6 +8,9 @@ struct SearchResult: Identifiable, Hashable {
     let id = UUID()
     let completion: MKLocalSearchCompletion
     var distance: String = "" // e.g., "2.5 km away"
+    // Resolved values retrieved via MKLocalSearch for richer display
+    var resolvedTitle: String? = nil
+    var resolvedSubtitle: String? = nil
 }
 
 class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
@@ -49,9 +52,15 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
     
     // Delegate method called when the completer updates with new results.
     func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
-        // Take the top 3 results and fetch their distances.
-        let topCompletions = Array(completer.results.prefix(3))
-        self.fetchDistances(for: topCompletions)
+        // Remove generic "nearby" suggestions and take up to 8 results for richer list.
+        let nonGeneric = completer.results.filter { completion in
+            // Filter out items whose subtitle contains "nearby" (e.g., "Search Nearby", "Show nearby")
+            !completion.subtitle.lowercased().contains("nearby")
+        }
+        // If filtering removed everything, fall back to original list.
+        let pool = nonGeneric.isEmpty ? completer.results : nonGeneric
+        let selectedCompletions = Array(pool.prefix(3))
+        self.fetchDistances(for: selectedCompletions)
     }
     
     // Fetches coordinates for each completion and calculates the distance.
@@ -71,9 +80,13 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
                 if let mapItem = response?.mapItems.first,
                    let destinationLocation = mapItem.placemark.location {
                     
+                    // Update distance
                     let distanceInMeters = userLocation.distance(from: destinationLocation)
                     let distanceInKm = distanceInMeters / 1000
                     resultsWithDistance[i].distance = String(format: "%.1f km", distanceInKm)
+                    // Store resolved title/subtitle for richer UI display
+                    resultsWithDistance[i].resolvedTitle = mapItem.name
+                    resultsWithDistance[i].resolvedSubtitle = mapItem.placemark.title
                 }
             }
         }
@@ -93,8 +106,28 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
                 }
                 return lhsDistance < rhsDistance
             }
-            self.searchResults = sortedResults
-            //<--END-->
+            // Filter out completions that do not have a resolved subtitle (i.e. no meaningful address)
+            let withAddress = sortedResults.filter { result in
+                if let subtitle = result.resolvedSubtitle {
+                    return !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+                return false
+            }
+            // Deduplicate based on resolved title + subtitle (case-insensitive).
+            let sourceList = withAddress.isEmpty ? sortedResults : withAddress
+            var seenKeys = Set<String>()
+            let uniqueResults = sourceList.filter { result in
+                let title = (result.resolvedTitle ?? result.completion.title).lowercased()
+                let subtitle = (result.resolvedSubtitle ?? result.completion.subtitle).lowercased()
+                let key = title + "|" + subtitle
+                if seenKeys.contains(key) {
+                    return false
+                } else {
+                    seenKeys.insert(key)
+                    return true
+                }
+            }
+            self.searchResults = uniqueResults
         }
     }
     
@@ -102,7 +135,7 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
     func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
         print("MKLocalSearchCompleter Error: \(error.localizedDescription)")
     }
-    
+
     // Generates a web search URL for the given query.
     func generateWebSearchURL(for query: String) -> URL? {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
