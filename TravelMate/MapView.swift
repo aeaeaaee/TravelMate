@@ -21,16 +21,13 @@ struct MapView: View {
     @State private var searchText = ""
     @State private var position: MapCameraPosition = .automatic
     @State private var selectedPlace: IdentifiablePlace?
-<<<<<<< HEAD
-    @State private var route: MKPolyline? // Holds the calculated route polyline.
-    @State private var fromRouteMapItem: MKMapItem? // Holds the 'From' location for route display
-    @State private var toRouteMapItem: MKMapItem?   // Holds the 'To' location for route display
-=======
 
 >>>>>>> V2
     @State private var isLocationSelected = false // Tracks if a location is selected in the main search
     @State private var isInitialLocationSet = false // Tracks if the map has centered on the initial location.
     @State private var isSelectionInProgress = false
+    // Toggle to show MapLibre transit base map instead of Apple MapKit
+    @State private var showTransitBaseMap = false
     @State private var visibleRegion: MKCoordinateRegion? // Tracks the map's visible region
 <<<<<<< HEAD
 =======
@@ -65,13 +62,7 @@ struct MapView: View {
                 case .map:
                     mapView
                 case .route:
-<<<<<<< HEAD
-                    // Pass the closure to handle the route calculation and tab switch.
-                    RouteView { fromItem, toItem in
-                        self.calculateRoute(from: fromItem, to: toItem)
-=======
                     RouteView(viewModel: routeViewModel) {
->>>>>>> V2
                         self.selectedTab = .map
                     }
                     .environmentObject(locationManager)
@@ -89,52 +80,24 @@ struct MapView: View {
             }
             .ignoresSafeArea() // Allow nav bar to go to the bottom edge
         }
-<<<<<<< HEAD
-        .onChange(of: selectedTab) { oldValue, newValue in
-            // Clear the route only when navigating away from map-related views.
-            if newValue == .journey || newValue == .settings {
-                route = nil
-                fromRouteMapItem = nil
-                toRouteMapItem = nil
-=======
         .alert("Invalid Search", isPresented: $showAlertForNoSelection) {
             Button("OK") { }
         } message: {
             Text(alertMessage)
         }
-        .bottomSheet(isPresented: $showLocationDetailSheet, currentDetent: $sheetDetent, onDismiss: {
-            // Don't clear selectedPlace to cache the last selection.
-            // Reset detent to default for next presentation.
-            sheetDetent = .half
-        }) {
-            if let place = selectedPlace {
-                LocationView(selectedTab: $selectedTab, mapItem: place.mapItem)
-                    .environmentObject(routeViewModel)
-            } else {
-                // Fallback content if selectedPlace is somehow nil when sheet is shown
-                Text("No location details available.")
-                    .padding()
-            }
+        .bottomSheet(isPresented: $showLocationDetailSheet,
+             currentDetent: $sheetDetent,
+             onDismiss: { sheetDetent = .half }) {
+            locationDetailContent
         }
         .onChange(of: routeViewModel.selectedRoute) { _, newSelectedRoute in
-            if let route = newSelectedRoute {
-                self.selectedPlace = nil // Clear single place pin if a route is selected
-                
-                // Create a bounding box for the selected route
-                let boundingRect = route.polyline.boundingMapRect
-                
-                // Convert the bounding box to a region and zoom out slightly
-                var region = MKCoordinateRegion(boundingRect)
-                region.span.latitudeDelta *= 1.4 // Zoom out a bit to give some padding
-                region.span.longitudeDelta *= 1.4
-                
-                withAnimation {
-                    self.position = .region(region)
-                }
-            } else {
-                // Optional: Handle camera when selectedRoute becomes nil (e.g., zoom to user or default)
-                // For now, we do nothing, map stays as is or follows user location if no route selected.
-            }
+            handleAppleRouteChange(newSelectedRoute)
+        }
+        .onChange(of: routeViewModel.selectedTransitRoute) { _, newTransitRoute in
+            handleTransitRouteChange(newTransitRoute)
+        }
+        .onChange(of: selection) { _, newSelection in
+            handleMapSelectionChange(newSelection)
         }
         .onChange(of: selectedTab) { oldValue, newValue in
             // Clear the route only when navigating away from map-related views.
@@ -142,43 +105,20 @@ struct MapView: View {
                 routeViewModel.routes = []
                 routeViewModel.fromItem = nil
                 routeViewModel.toItem = nil
->>>>>>> V2
                 searchText = "" // Clear MapView's search text
                 selectedPlace = nil // Clear MapView's selected place pin
             }
         }
-        .onChange(of: locationManager.location) {
-            // This modifier watches for the first location update from the locationManager.
-            if let userLocation = locationManager.location, !isInitialLocationSet {
-                // Center the map on the user's current location.
-                let userRegion = MKCoordinateRegion(
-                    center: userLocation.coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01) // More zoomed-in span
-                )
-                withAnimation {
-                    position = .region(userRegion)
-                }
-                // Prevent this from running again.
-                isInitialLocationSet = true
-            }
+        .onChange(of: locationManager.location) { _, newLocation in
+            handleLocationChange(newLocation)
         }
-    }
+        }
     
     // The view content for the "Map" tab.
     private var mapView: some View {
         ZStack {
             Map(position: $position) {
                 UserAnnotation()
-<<<<<<< HEAD
-                // Only show selectedPlace pin if no route is active
-                if route == nil, let place = selectedPlace {
-                    // The Annotation now includes a text label next to the pin.
-                    Annotation(place.mapItem.name ?? "Location", coordinate: place.mapItem.placemark.coordinate) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "mappin.circle.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(.red)
-=======
                 
                 // Show single selected place only if no routes are active.
                 if routeViewModel.routes.isEmpty, let place = selectedPlace {
@@ -189,36 +129,10 @@ struct MapView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 8)).shadow(radius: 2, y: 1)
                             Image(systemName: "mappin.circle.fill")
                                 .font(.system(size: 40)).foregroundColor(.red)
->>>>>>> V2
                         }
                     }
                 }
 
-<<<<<<< HEAD
-
-                // Display the 'From' marker if it exists.
-                if let fromItem = fromRouteMapItem {
-                    Annotation(fromItem.name ?? "From", coordinate: fromItem.placemark.coordinate) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 40)) // Fixed size
-                            .foregroundColor(.blue)
-                    }
-                }
-
-                // Display the 'To' marker if it exists.
-                if let toItem = toRouteMapItem {
-                    Annotation(toItem.name ?? "To", coordinate: toItem.placemark.coordinate) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 40)) // Fixed size
-                            .foregroundColor(.red)
-                    }
-                }
-                
-                // Display the calculated route if it exists.
-                if let route = route {
-                    MapPolyline(route)
-                        .stroke(.blue, lineWidth: 5)
-=======
                 // Display route markers if routes are available.
                 if let fromItem = routeViewModel.fromItem {
                     Annotation(fromItem.name ?? "From", coordinate: fromItem.placemark.coordinate) {
@@ -238,7 +152,6 @@ struct MapView: View {
                 if let selectedRoute = routeViewModel.selectedRoute {
                     MapPolyline(selectedRoute.polyline)
                         .stroke(Color.blue, lineWidth: 5)
->>>>>>> V2
                 }
             }
             .onTapGesture { focusedField = nil }
@@ -253,9 +166,86 @@ struct MapView: View {
                 Spacer()
             }
             .ignoresSafeArea()
+            .allowsHitTesting(false)
 
             mainMapInterface
         }
+        .overlay(alignment: .topTrailing) {
+            Button(action: { showTransitBaseMap.toggle() }) {
+                Image(systemName: showTransitBaseMap ? "mappin.and.ellipse" : "tram.fill.tunnel")
+                    .font(.system(size: 22, weight: .medium))
+                    .padding(10)
+            }
+            .background(.thinMaterial)
+            .clipShape(Circle())
+            .shadow(radius: 3)
+            .padding()
+        }
+        // Dismiss keyboard and disable editing when tapping anywhere outside the search field.
+        .simultaneousGesture(TapGesture().onEnded {
+            // Dismiss keyboard when tapping outside.
+            self.focusedField = nil
+        })
+    } // End of mainBody
+    
+    // MARK: - Helpers and subviews
+
+    private func dismissKeyboard() {
+        focusedField = nil
+    }
+
+    // Existing helper views continue below...
+    
+    // MARK: - onChange Handlers
+    
+    private func handleAppleRouteChange(_ newRoute: MKRoute?) {
+        guard let route = newRoute else { return }
+        selectedPlace = nil
+        var region = MKCoordinateRegion(route.polyline.boundingMapRect)
+        region.span.latitudeDelta *= 1.4
+        region.span.longitudeDelta *= 1.4
+        withAnimation { position = .region(region) }
+    }
+    
+    private func handleTransitRouteChange(_ newTransitRoute: APIServices.TransitRoute?) {
+        guard let transit = newTransitRoute else { return }
+        selectedPlace = nil
+        var region = MKCoordinateRegion(transit.polyline.boundingMapRect)
+        region.span.latitudeDelta *= 1.4
+        region.span.longitudeDelta *= 1.4
+        withAnimation { position = .region(region) }
+    }
+    
+    private func handleMapSelectionChange(_ newSelection: MKMapItem?) {
+        guard let item = newSelection else { return }
+        selectedPlace = IdentifiablePlace(mapItem: item)
+        showLocationDetailSheet = true
+        isLocationSelected = true
+        let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        let region = MKCoordinateRegion(center: item.placemark.coordinate, span: span)
+        withAnimation { position = .region(region) }
+    }
+    
+    private func handleTabChange(_ newTab: MapView.Tab) {
+        if newTab == .journey || newTab == .settings {
+            routeViewModel.routes = []
+            routeViewModel.transitRoutes = []
+            routeViewModel.selectedTransitRoute = nil
+            routeViewModel.fromItem = nil
+            routeViewModel.toItem = nil
+            searchText = ""
+            selectedPlace = nil
+        }
+    }
+    
+    private func handleLocationChange(_ location: CLLocation?) {
+        guard let userLocation = location, !isInitialLocationSet else { return }
+        let userRegion = MKCoordinateRegion(
+            center: userLocation.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+        withAnimation { position = .region(userRegion) }
+        isInitialLocationSet = true
     }
     
     private var mainMapInterface: some View {
@@ -293,11 +283,11 @@ struct MapView: View {
                         Button {
                             if isLocationSelected, selectedPlace != nil {
                                 showLocationDetailSheet = true
-                                print("Info button tapped for: \(selectedPlace?.mapItem.name ?? "Selected Place")")
+                                
                             } else {
                                 alertMessage = "Please select a location from the search results first, or search for a location."
                                 showAlertForNoSelection = true
-                                print("Info button tapped, but no location is selected.")
+                                
                             }
                             focusedField = nil // Dismiss keyboard after tapping info button
                         } label: {
@@ -326,10 +316,10 @@ struct MapView: View {
                             Button(action: { handleMainSearchSelection(result.completion) }) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(result.completion.title)
+                                        Text(result.resolvedTitle ?? result.completion.title)
                                             .font(.headline)
                                             .foregroundColor(.primary)
-                                        Text(result.completion.subtitle)
+                                        Text(result.resolvedSubtitle ?? result.completion.subtitle)
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                     }
@@ -383,6 +373,50 @@ struct MapView: View {
         }
     }
     
+    @ViewBuilder
+    private var mainTabContent: some View {
+        switch selectedTab {
+        case .map:
+            AnyView(mapView)
+        case .route:
+            AnyView(RouteView(viewModel: routeViewModel) {
+                self.selectedTab = .map
+            }
+            .environmentObject(locationManager))
+        case .journey:
+            AnyView(JourneyView())
+        case .settings:
+            AnyView(SettingsView())
+        }
+    }
+    
+    @ViewBuilder
+    private var locationDetailContent: some View {
+        if let place = selectedPlace {
+            LocationView(selectedTab: $selectedTab, mapItem: place.mapItem)
+                .environmentObject(routeViewModel)
+        } else {
+            Text("No location details available.")
+                .padding()
+        }
+    }
+    
+    @ViewBuilder
+    private var rootStack: some View {
+        ZStack {
+            mainTabContent
+            bottomNavOverlay
+        }
+    }
+    
+    private var bottomNavOverlay: some View {
+        VStack {
+            Spacer()
+            bottomNavBar
+        }
+        .ignoresSafeArea()
+    }
+    
     // The bottom navigation bar view.
     private var bottomNavBar: some View {
         VStack(spacing: 0) {
@@ -405,7 +439,7 @@ struct MapView: View {
     }
 
     // Helper function to create a standard navigation bar button.
-    private func navBarButton(icon: String, text: String, tab: Tab, size: CGFloat = 24) -> some View {
+    private func navBarButton(icon: String, text: String, tab: MapView.Tab, size: CGFloat = 24) -> some View {
         Button(action: {
             selectedTab = tab
         }) {
@@ -425,7 +459,7 @@ struct MapView: View {
         let search = MKLocalSearch(request: request)
         search.start { response, error in
             guard let mapItem = response?.mapItems.first else {
-                if let error = error { print("MKLocalSearch Error: \(error.localizedDescription)") }
+                
                 return
             }
             DispatchQueue.main.async {
@@ -444,7 +478,7 @@ struct MapView: View {
                     withAnimation { self.position = .region(newRegion) }
                 }
                 isSelectionInProgress = true
-                self.searchText = "\(completion.title), \(completion.subtitle)"
+                self.searchText = "\(mapItem.name ?? ""), \(mapItem.placemark.title ?? "")"
                 self.isLocationSelected = true
                 self.searchService.searchResults = []
                 
@@ -465,7 +499,7 @@ struct MapView: View {
         let search = MKLocalSearch(request: request)
         search.start { response, error in
             guard let destinationItem = response?.mapItems.first else {
-                if let error = error { print("Search failed for query '\(query)': \(error.localizedDescription)") }
+                
                 return
             }
             let sourceItem = MKMapItem(placemark: MKPlacemark(coordinate: userLocation.coordinate))
@@ -477,10 +511,8 @@ struct MapView: View {
                 self.routeViewModel.calculateRoutes { success in
                     // The onChange modifier on routes will handle camera changes.
                     if success {
-                        print("Routes found from main search.")
-                    } else {
-                        print("No routes found from main search.")
-                    }
+                        
+                    } 
                 }
                 
                 // Update UI

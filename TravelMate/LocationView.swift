@@ -2,6 +2,9 @@ import SwiftUI
 import MapKit
 
 struct LocationView: View {
+    // State variables for Look Around scene
+    @State private var lookAroundScene: MKLookAroundScene? = nil
+    @State private var isLookAroundAvailable: Bool = true // Assume available until proven otherwise
     @EnvironmentObject var routeViewModel: RouteViewModel
     @Environment(\.openURL) var openURL
     @Binding var selectedTab: MapView.Tab // Use MapView.Tab as confirmed by user
@@ -139,8 +142,61 @@ struct LocationView: View {
         }
     }
 
+    // Function to fetch the Look Around scene
+    @available(iOS 16.0, *)
+    private func fetchLookAroundScene(for coordinate: CLLocationCoordinate2D) async {
+        let request = MKLookAroundSceneRequest(coordinate: coordinate)
+        do {
+            if let scene = try await request.scene {
+                await MainActor.run {
+                    self.lookAroundScene = scene
+                    self.isLookAroundAvailable = true
+                }
+            } else {
+                await MainActor.run {
+                    self.lookAroundScene = nil
+                    self.isLookAroundAvailable = false
+                }
+                print("Look Around scene not available for this location.")
+            }
+        } catch {
+            await MainActor.run {
+                self.lookAroundScene = nil
+                self.isLookAroundAvailable = false
+            }
+            print("Failed to fetch Look Around scene: \(error.localizedDescription)")
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading) {
+            // Display Look Around view or unavailable message (iOS 16+)
+            if #available(iOS 16.0, *) {
+                if isLookAroundAvailable {
+                    LookAroundContainerView(scene: lookAroundScene)
+                        .padding(.bottom, 10)
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.systemGray5))
+                        VStack (alignment : .center) {
+                            Image(systemName : "eye.slash")
+                                .font(.system(size: 25))
+                                .foregroundColor(.secondary)
+                            Text("Street View is not available at this location.")
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding()
+                        }
+                    }
+                    .frame(height: 200)
+                    .padding(.bottom, 10)
+                }
+            } else {
+                // Optional: Placeholder for iOS versions older than 16
+                // if you want to show something specific.
+                // Otherwise, nothing will be shown for the Look Around part.
+            }
             // Header with Title, Category, and Add Button
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -153,12 +209,11 @@ struct LocationView: View {
                     }
                     Spacer()
                     Button(action: {
-                        // Placeholder action for the "+" button
-                        print("Add button tapped for \(mapItem.name ?? "Unknown")")
+                        // Placeholder action for the "Favorite" button
+                        print("Favorite button tapped for \(mapItem.name ?? "Unknown")")
                     }) {
-                        Image(systemName: "plus.circle.fill")
+                        Image(systemName: "star.fill")
                             .font(.title2)
-                            .foregroundColor(.blue)
                     }
                 }
                 
@@ -248,6 +303,20 @@ struct LocationView: View {
             Spacer() // Pushes content to the top
         }
         .padding()
+        .task(id: mapItem) { // Using .task to trigger when mapItem changes (iOS 15+)
+            // Reset scene when mapItem changes before fetching new one
+            if #available(iOS 16.0, *) {
+                await MainActor.run {
+                    self.lookAroundScene = nil
+                    self.isLookAroundAvailable = true // Reset availability for new item
+                }
+                if let coordinate = mapItem.placemark.location?.coordinate {
+                    await fetchLookAroundScene(for: coordinate)
+                }
+            } else {
+                // Look Around is not available on older iOS versions
+            }
+        }
     }
 } // Correctly closing LocationView struct
 

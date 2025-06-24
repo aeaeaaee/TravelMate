@@ -168,7 +168,7 @@ private struct BottomSheetModifier<SheetContent: View>: ViewModifier {
             return max(cappedContentHeight, 50) + handleHeight // Ensure a minimum visible height for peek content area
 
         case .half:
-            return containerSize.height * 0.6
+            return containerSize.height * 0.8
 
         case .full:
             return containerSize.height * 0.92
