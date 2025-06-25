@@ -9,6 +9,11 @@ struct LocationView: View {
     @Environment(\.openURL) var openURL
     @Binding var selectedTab: MapView.Tab // Use MapView.Tab as confirmed by user
     let mapItem: MKMapItem
+    @State private var isFavorite: Bool = false
+    // Google Places photo URL
+    @State private var placePhotoURL: URL? = nil
+    // Google Places details (name, formatted address, etc.)
+    @State private var placeDetails: PlaceDetails? = nil
 
     // Helper to get a user-friendly category string
     private var categoryString: String {
@@ -170,68 +175,88 @@ struct LocationView: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            // Display Look Around view or unavailable message (iOS 16+)
+            // Display Google Places photo if available
             if #available(iOS 16.0, *) {
-                if isLookAroundAvailable {
-                    LookAroundContainerView(scene: lookAroundScene)
-                        .padding(.bottom, 10)
-                } else {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color(.systemGray5))
-                        VStack (alignment : .center) {
-                            Image(systemName : "eye.slash")
-                                .font(.system(size: 25))
-                                .foregroundColor(.secondary)
-                            Text("Street View is not available at this location.")
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding()
+                if let url = placePhotoURL {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            Color(.systemGray5)
+                                .frame(height: 200)
+                                .overlay(
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle())
+                                )
+                        case .success(let image):
+                            image.resizable()
+                                .scaledToFill()
+                                .frame(height: 200)
+                                .clipped()
+                                .cornerRadius(10)
+                        case .failure:
+                            Color(.systemGray5)
+                                .frame(height: 200)
+                                .overlay(
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "eye.slash")
+                                            .font(.system(size: 40))
+                                        Text("Photos are not available for this location")
+                                            .font(.footnote)
+                                            .multilineTextAlignment(.center)
+                                    }
+                                    .foregroundColor(.secondary)
+                                    .padding()
+                                )
+                        @unknown default:
+                            EmptyView()
                         }
                     }
-                    .frame(height: 200)
                     .padding(.bottom, 10)
                 }
-            } else {
-                // Optional: Placeholder for iOS versions older than 16
-                // if you want to show something specific.
-                // Otherwise, nothing will be shown for the Look Around part.
-            }
+            } // end of Google Places photo block (#available)
+
             // Header with Title, Category, and Add Button
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(mapItem.name ?? "Unknown Location")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    if let flag = countryFlag {
-                        Text(flag)
-                            .font(.title2) // Match name font size or adjust as preferred
+                HStack(alignment: .top) {
+                    // Name, flag, and category stacked vertically
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text(mapItem.name ?? "Unknown Location")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            if let flag = countryFlag {
+                                Text(flag)
+                                    .font(.title2)
+                            }
+                        }
+                        HStack {
+                            Text(categoryString)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+
+                            // Apple-style Category Icon
+                            ZStack {
+                                Circle()
+                                    .fill(categoryIconBackgroundColor)
+                                    .frame(width: 22, height: 22)
+                                Image(systemName: categoryIconName)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.white)
+                            }
+                        }
                     }
+
                     Spacer()
+
+                    // Favorite toggle button
                     Button(action: {
-                        // Placeholder action for the "Favorite" button
-                        print("Favorite button tapped for \(mapItem.name ?? "Unknown")")
+                        isFavorite.toggle()
                     }) {
-                        Image(systemName: "star.fill")
-                            .font(.title2)
+                        Image(systemName: isFavorite ? "heart.fill" : "heart")
+                            .font(.system(size: 22))
+                            .foregroundColor(isFavorite ? .red : .secondary)
                     }
-                }
-                
-                HStack(spacing: 8) {
-                    Text(categoryString)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    // Apple-style Category Icon
-                    ZStack {
-                        Circle()
-                            .fill(categoryIconBackgroundColor)
-                            .frame(width: 22, height: 22) // Adjusted size to fit subheadline
-                        Image(systemName: categoryIconName)
-                            .font(.system(size: 12, weight: .medium)) // Adjusted size
-                            .foregroundColor(.white)
-                    }
-                    Spacer() // Add spacer to push icon and text to the left if add button is removed or placed elsewhere
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -288,7 +313,7 @@ struct LocationView: View {
             .padding(.bottom, 8) // Add some padding below the buttons
 
             VStack(alignment: .leading, spacing: 8) {
-                if let address = mapItem.placemark.title {
+                if let address = placeDetails?.address ?? mapItem.placemark.title {
                     Text(address)
                         .font(.body)
                 }
@@ -303,18 +328,22 @@ struct LocationView: View {
             Spacer() // Pushes content to the top
         }
         .padding()
-        .task(id: mapItem) { // Using .task to trigger when mapItem changes (iOS 15+)
-            // Reset scene when mapItem changes before fetching new one
-            if #available(iOS 16.0, *) {
+        .task(id: mapItem) {
+            // Fetch Google Places photo when selected location changes
+            placePhotoURL = nil
+            placeDetails = nil
+            let query = (mapItem.name ?? "") + ", " + (mapItem.placemark.title ?? "")
+            do {
+                let details = try await GooglePlacesAPIService.shared.placeDetails(forTextQuery: query)
                 await MainActor.run {
-                    self.lookAroundScene = nil
-                    self.isLookAroundAvailable = true // Reset availability for new item
+                    placeDetails = details
+                    if let ref = details.photoReference,
+                       let url = GooglePlacesAPIService.shared.photoURL(for: ref, maxWidth: 600) {
+                        placePhotoURL = url
+                    }
                 }
-                if let coordinate = mapItem.placemark.location?.coordinate {
-                    await fetchLookAroundScene(for: coordinate)
-                }
-            } else {
-                // Look Around is not available on older iOS versions
+            } catch {
+                print("Failed to fetch Google Places details: \(error.localizedDescription)")
             }
         }
     }
