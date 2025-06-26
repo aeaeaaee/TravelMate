@@ -1,7 +1,6 @@
 import SwiftUI
 import MapKit
 
-@available(iOS 16.0, *)
 struct LookAroundView: UIViewControllerRepresentable {
     var scene: MKLookAroundScene?
 
@@ -28,8 +27,6 @@ struct LookAroundView: UIViewControllerRepresentable {
 }
 
 // Optional: A simple placeholder if Look Around is not available or scene is nil,
-// or to use while loading, though AsyncImage-like behavior is better handled in the parent view.
-@available(iOS 16.0, *)
 struct LookAroundContainerView: View {
     var scene: MKLookAroundScene?
     

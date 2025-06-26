@@ -1,8 +1,3 @@
-//  APIServices.swift
-//  TravelMate
-//
-//  Created by Cascade AI
-//
 //  A lightweight wrapper around the Google Places Web Service to fetch
 //  details for a place (name, address, coordinate, optional photo).
 //  The API key should be stored securely in Info.plist under the key

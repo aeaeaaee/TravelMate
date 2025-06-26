@@ -148,7 +148,7 @@ struct LocationView: View {
     }
 
     // Function to fetch the Look Around scene
-    @available(iOS 16.0, *)
+
     private func fetchLookAroundScene(for coordinate: CLLocationCoordinate2D) async {
         let request = MKLookAroundSceneRequest(coordinate: coordinate)
         do {
@@ -176,8 +176,9 @@ struct LocationView: View {
     var body: some View {
         VStack(alignment: .leading) {
             // Display Google Places photo if available
-            if #available(iOS 16.0, *) {
+
                 if let url = placePhotoURL {
+                    ZStack(alignment: .bottomTrailing) {
                     AsyncImage(url: url) { phase in
                         switch phase {
                         case .empty:
@@ -211,9 +212,28 @@ struct LocationView: View {
                             EmptyView()
                         }
                     }
+                    // Images search overlay button
+                    Button {
+                        let queryString = ((mapItem.name ?? "") + " " + (placeDetails?.address ?? "")).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                        if let imgURL = URL(string: "https://www.google.com/search?tbm=isch&q=\(queryString)") {
+                            openURL(imgURL)
+                        }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 14))
+                                Text("Image Search")
+                                    .font(.caption.bold())
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                        }
+
+                    }
                     .padding(.bottom, 10)
                 }
-            } // end of Google Places photo block (#available)
+
 
             // Header with Title, Category, and Add Button
             VStack(alignment: .leading, spacing: 4) {
@@ -309,6 +329,9 @@ struct LocationView: View {
                 .disabled(mapItem.url == nil)
                 .tint(mapItem.url == nil ? .gray : .green)
                 .frame(maxWidth: .infinity) // Make button take available width
+
+                // Google Images search button (moved to photo overlay)
+
             }
             .padding(.bottom, 8) // Add some padding below the buttons
 

@@ -93,7 +93,6 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
         
         // When all searches are complete, sort the results and update the UI.
         group.notify(queue: .main) {
-            //<--START-->
             // Sort the results by distance before publishing.
             let sortedResults = resultsWithDistance.sorted { (lhs, rhs) in
                 // Safely extract the numeric part of the distance string for comparison.
@@ -128,9 +127,26 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
                 }
             }
             self.searchResults = uniqueResults
+            self.enrichAddressesWithGoogle()
         }
     }
     
+    // Fetch Google Places formatted address for each result and update subtitle if available
+    private func enrichAddressesWithGoogle() {
+        for index in searchResults.indices {
+            let title = searchResults[index].resolvedTitle ?? searchResults[index].completion.title
+            let subtitle = searchResults[index].resolvedSubtitle ?? searchResults[index].completion.subtitle
+            let query = "\(title), \(subtitle)"
+            Task {
+                if let details = try? await GooglePlacesAPIService.shared.placeDetails(forTextQuery: query) {
+                    await MainActor.run {
+                        self.searchResults[index].resolvedSubtitle = details.address
+                    }
+                }
+            }
+        }
+    }
+
     // Delegate method for handling search completer errors.
     func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
         print("MKLocalSearchCompleter Error: \(error.localizedDescription)")
