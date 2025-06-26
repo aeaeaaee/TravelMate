@@ -14,6 +14,8 @@ struct LocationView: View {
     @State private var placePhotoURL: URL? = nil
     // Google Places details (name, formatted address, etc.)
     @State private var placeDetails: PlaceDetails? = nil
+    // Indicates we waited long enough and still have no place details.
+    @State private var photoFetchTimedOut: Bool = false
 
     // Helper to get a user-friendly category string
     private var categoryString: String {
@@ -177,26 +179,21 @@ struct LocationView: View {
         VStack(alignment: .leading) {
             // Display Google Places photo if available
 
-                if let url = placePhotoURL {
-                    ZStack(alignment: .bottomTrailing) {
+            if let url = placePhotoURL {
+                ZStack(alignment: .bottomTrailing) {
                     AsyncImage(url: url) { phase in
                         switch phase {
                         case .empty:
                             Color(.systemGray5)
-                                .frame(height: 200)
                                 .overlay(
                                     ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle())
+                                        .progressViewStyle(.circular)
                                 )
                         case .success(let image):
                             image.resizable()
                                 .scaledToFill()
-                                .frame(height: 200)
-                                .clipped()
-                                .cornerRadius(10)
                         case .failure:
                             Color(.systemGray5)
-                                .frame(height: 200)
                                 .overlay(
                                     VStack(spacing: 8) {
                                         Image(systemName: "eye.slash")
@@ -209,31 +206,70 @@ struct LocationView: View {
                                     .padding()
                                 )
                         @unknown default:
-                            EmptyView()
+                            VStack(spacing: 8) {
+                                Image(systemName: "eye.slash")
+                                    .font(.system(size: 40))
+                                Text("Photos are not available for this location")
+                                    .font(.footnote)
+                                    .multilineTextAlignment(.center)
+                            }
+                            Color(.systemGray5)
                         }
                     }
-                    // Images search overlay button
+                    .frame(height: 200)
+                    .clipped()
+                    .cornerRadius(10)
+
+                    // Google Images overlay button (only shown when photo is present)
                     Button {
                         let queryString = ((mapItem.name ?? "") + " " + (placeDetails?.address ?? "")).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                         if let imgURL = URL(string: "https://www.google.com/search?tbm=isch&q=\(queryString)") {
                             openURL(imgURL)
                         }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 14))
-                                Text("Image Search")
-                                    .font(.caption.bold())
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 14))
+                            Text("Image Search")
+                                .font(.caption.bold())
                         }
-
+                        .buttonStyle(.borderedProminent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 6))
                     }
-                    .padding(.bottom, 10)
+                    .padding(8)
                 }
-
+                .frame(height: 200)
+                .padding(.bottom, 10)
+            } else {
+                if placeDetails == nil && !photoFetchTimedOut {
+                    // Wait for 5 seconds, then show failure (Apple Map and Google Map POI different)
+                    Color(.systemGray5)
+                        .overlay(
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                        )
+                        .frame(height: 200)
+                        .padding(.bottom, 10)
+                } else {
+                    // Details fetched but no photo available – show failure overlay
+                    Color(.systemGray5)
+                        .overlay(
+                            VStack(spacing: 8) {
+                                Image(systemName: "eye.slash")
+                                    .font(.system(size: 40))
+                                Text("Photos are not available for this location")
+                                    .font(.footnote)
+                                    .multilineTextAlignment(.center)
+                            }
+                            .foregroundColor(.secondary)
+                            .padding()
+                        )
+                        .frame(height: 200)
+                        .padding(.bottom, 10)
+                }
+            }
 
             // Header with Title, Category, and Add Button
             VStack(alignment: .leading, spacing: 4) {
@@ -355,9 +391,18 @@ struct LocationView: View {
             // Fetch Google Places photo when selected location changes
             placePhotoURL = nil
             placeDetails = nil
-            let query = (mapItem.name ?? "") + ", " + (mapItem.placemark.title ?? "")
+            photoFetchTimedOut = false
+            // Use only the name for the query, relying on the coordinate bias for accuracy.
+            let query = mapItem.name ?? ""
+            // Start a 5-second timeout timer in parallel
+            Task {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                if placeDetails == nil {
+                    await MainActor.run { photoFetchTimedOut = true }
+                }
+            }
             do {
-                let details = try await GooglePlacesAPIService.shared.placeDetails(forTextQuery: query)
+                let details = try await GooglePlacesAPIService.shared.placeDetails(forQuery: query, at: mapItem.placemark.coordinate)
                 await MainActor.run {
                     placeDetails = details
                     if let ref = details.photoReference,
