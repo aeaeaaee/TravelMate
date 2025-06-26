@@ -31,9 +31,7 @@ struct UIKitMapView: UIViewRepresentable {
         mapView.isRotateEnabled = false
         mapView.pointOfInterestFilter = .includingAll // show all POIs
         mapView.showsTraffic = true
-        if #available(iOS 17.0, *) {
-            mapView.selectableMapFeatures = [.pointsOfInterest] // allow POI taps
-        }
+        mapView.selectableMapFeatures = [.pointsOfInterest] // allow POI taps
         return mapView
     }
 

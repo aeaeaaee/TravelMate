@@ -148,7 +148,7 @@ struct LocationView: View {
     }
 
     // Function to fetch the Look Around scene
-    @available(iOS 16.0, *)
+
     private func fetchLookAroundScene(for coordinate: CLLocationCoordinate2D) async {
         let request = MKLookAroundSceneRequest(coordinate: coordinate)
         do {
@@ -176,7 +176,7 @@ struct LocationView: View {
     var body: some View {
         VStack(alignment: .leading) {
             // Display Google Places photo if available
-            if #available(iOS 16.0, *) {
+
                 if let url = placePhotoURL {
                     AsyncImage(url: url) { phase in
                         switch phase {
@@ -213,7 +213,7 @@ struct LocationView: View {
                     }
                     .padding(.bottom, 10)
                 }
-            } // end of Google Places photo block (#available)
+
 
             // Header with Title, Category, and Add Button
             VStack(alignment: .leading, spacing: 4) {
