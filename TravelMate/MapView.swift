@@ -113,7 +113,14 @@ struct MapView: View {
                     overlayPolyline: routeViewModel.selectedRoute?.polyline ?? routeViewModel.selectedTransitRoute?.polyline,
                     position: $position,
                     onSelect: { mapItem in
-                        self.selection = mapItem
+                        if let item = mapItem {
+                            self.selection = item
+                        } else {
+                            // Deselect
+                            self.selection = nil
+                            self.showLocationDetailSheet = false
+                            self.isLocationSelected = false
+                        }
                     },
                     onRegionChange: { region in
                         // Track visible region for zoom buttons and keep the SwiftUI camera binding in sync with user pans.
@@ -135,17 +142,6 @@ struct MapView: View {
             .allowsHitTesting(false)
 
             mainMapInterface
-        }
-        .overlay(alignment: .topTrailing) {
-            Button(action: { showTransitBaseMap.toggle() }) {
-                Image(systemName: showTransitBaseMap ? "mappin.and.ellipse" : "tram.fill.tunnel")
-                    .font(.system(size: 22, weight: .medium))
-                    .padding(10)
-            }
-            .background(.thinMaterial)
-            .clipShape(Circle())
-            .shadow(radius: 3)
-            .padding()
         }
         // Dismiss keyboard and disable editing when tapping anywhere outside the search field.
         .simultaneousGesture(TapGesture().onEnded {
@@ -319,6 +315,17 @@ struct MapView: View {
                 HStack {
                     Spacer()
                     VStack(spacing: 8) {
+                        // Transit map toggle button (above geolocation)
+                        Button(action: { showTransitBaseMap.toggle() }) {
+                            Image(systemName: showTransitBaseMap ? "mappin.and.ellipse" : "tram.fill.tunnel")
+                                .font(.system(size: 20, weight: .medium))
+                                .padding(10)
+                                .frame(width: 44, height: 44)
+                        }
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .shadow(radius: 4)
+
                         Button(action: {
                             if let userLocation = locationManager.location {
                                 let userRegion = MKCoordinateRegion(center: userLocation.coordinate, span: position.region?.span ?? MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05))
@@ -326,14 +333,32 @@ struct MapView: View {
                             }
                         }) {
                             Image(systemName: "location.fill").font(.title2).padding(10).frame(width: 44, height: 44)
-                        }.background(.thinMaterial).clipShape(RoundedRectangle(cornerRadius: 8)).shadow(radius: 4)
+                        }
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .shadow(radius: 4)
                         
                         VStack(spacing: 0) {
-                            Button(action: { zoom(in: true) }) { Image(systemName: "plus").font(.system(size: 20, weight: .medium)).padding(10).frame(width: 44, height: 44) }
+                            Button(action: { zoom(in: true) }) { 
+                                Image(systemName: "plus")
+                                .font(.system(size: 20, weight: .medium))
+                                .padding(10)
+                                .frame(width: 44, height: 44) 
+                            }
                             Divider().frame(width: 28)
-                            Button(action: { zoom(in: false) }) { Image(systemName: "minus").font(.system(size: 20, weight: .medium)).padding(10).frame(width: 44, height: 44) }
-                        }.background(.thinMaterial).clipShape(RoundedRectangle(cornerRadius: 8)).shadow(radius: 4)
-                    }.padding().padding(.bottom, 35.0)
+                            Button(action: { zoom(in: false) }) { 
+                                Image(systemName: "minus")
+                                .font(.system(size: 20, weight: .medium))
+                                .padding(10)
+                                .frame(width: 44, height: 44) 
+                            }
+                        }
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .shadow(radius: 4)
+                    }
+                    .padding()
+                    .padding(.bottom, 35.0)
                 }
             }
         }

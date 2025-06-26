@@ -17,9 +17,9 @@ final class CustomPointAnnotation: MKPointAnnotation {
 struct UIKitMapView: UIViewRepresentable {
     // Data from SwiftUI side
     let annotations: [CustomPointAnnotation]
-    let route: MKRoute?
+    let overlayPolyline: MKPolyline?
     @Binding var position: MapCameraPosition
-    let onSelect: (MKMapItem) -> Void
+    let onSelect: (MKMapItem?) -> Void
     let onRegionChange: (MKCoordinateRegion) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -62,8 +62,8 @@ struct UIKitMapView: UIViewRepresentable {
         mapView.overlays.forEach { overlay in
             if overlay is MKPolyline { mapView.removeOverlay(overlay) }
         }
-        if let route {
-            mapView.addOverlay(route.polyline)
+        if let polyline = overlayPolyline {
+            mapView.addOverlay(polyline)
         }
     }
 
@@ -129,6 +129,11 @@ struct UIKitMapView: UIViewRepresentable {
                     }
                 }
             }
+        }
+
+        // Called when the current annotation is deselected (e.g. user taps elsewhere)
+        func mapView(_ mapView: MKMapView, didDeselect view: MKAnnotationView) {
+            parent.onSelect(nil)
         }
 
         // Overlay renderer (for route polyline)

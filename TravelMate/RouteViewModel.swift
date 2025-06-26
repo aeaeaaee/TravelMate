@@ -2,6 +2,16 @@ import Foundation
 import MapKit
 import Combine
 
+// MARK: - Placeholder for Transit Routing until detailed implementation
+enum APIServices {
+    /// Represents a transit route returned by a future backend/service.
+    /// Currently only stores the polyline so existing map overlay logic compiles.
+    struct TransitRoute: Identifiable, Hashable {
+        let id = UUID()
+        let polyline: MKPolyline
+    }
+}
+
 // ViewModel to contain all the logic for the RoutePlannerView.
 
 // Enum for different transport options, conforming to CaseIterable and Identifiable for Picker use.
@@ -46,6 +56,9 @@ class RouteViewModel: ObservableObject {
     @Published var fromItem: MKMapItem?
     @Published var toItem: MKMapItem?
     @Published var routes: [MKRoute] = []
+    // Support for future transit routing (currently stubbed)
+    @Published var transitRoutes: [APIServices.TransitRoute] = []
+    @Published var selectedTransitRoute: APIServices.TransitRoute? = nil
     @Published var selectedRoute: MKRoute? = nil
     
     @Published var selectedFromResult: MKLocalSearchCompletion? = nil

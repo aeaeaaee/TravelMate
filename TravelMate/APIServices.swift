@@ -1,28 +1,26 @@
-//  A lightweight wrapper around the Google Places Web Service to fetch
+//  A lightweight wrapper around the Google Places API (New) to fetch
 //  details for a place (name, address, coordinate, optional photo).
 //  The API key should be stored securely in Info.plist under the key
 //  "GOOGLE_API_KEY". DO NOT hard-code production keys.
 //
-//  Usage Example (async/await):
-//  let details = try await GooglePlacesAPIService.shared.placeDetails(for: placeID)
-//  let photoURL = GooglePlacesAPIService.shared.photoURL(for: details.photoReference)
+//  This implementation uses the modern Places API (New) endpoints,
+//  which require POST requests with field masks.
 //
-//  For older callers you can use the completion-handler variants provided.
-
-//  For more information on the Google Places Web Service, see
-//  https://developers.google.com/maps/documentation/places/web-service/overview?hl=zh-tw
+//  For more information on migrating to the new Places API, see:
+//  https://developers.google.com/maps/documentation/places/web-service/migration
 
 import Foundation
 import CoreLocation
 
 // MARK: - Public Model
 
-/// Represents the essential details returned from the Google Places Details endpoint.
+/// Represents the essential details returned from the Google Places API.
 struct PlaceDetails: Hashable {
     let name: String
     let address: String
     let coordinate: CLLocationCoordinate2D
-    /// The first photo reference if available. You can convert this to a URL via `photoURL(for:maxWidth:)`.
+    /// The reference name for the first photo if available. Convert this to a URL via `photoURL(for:maxWidth:)`.
+    /// Example: "places/ChIJN1t_tDeuEmsRUsoyG83frY4/photos/..."
     let photoReference: String?
 
     // MARK: - Hashable
@@ -31,6 +29,7 @@ struct PlaceDetails: Hashable {
         hasher.combine(address)
         hasher.combine(coordinate.latitude)
         hasher.combine(coordinate.longitude)
+        hasher.combine(photoReference)
     }
 
     // MARK: - Equatable
@@ -45,173 +44,174 @@ struct PlaceDetails: Hashable {
 
 // MARK: - Service
 
-/// A singleton service object that interacts with the Google Places Web Service REST APIs.
+/// A singleton service object that interacts with the Google Places API (New) REST APIs.
 /// All network calls run on `URLSession.shared` with async/await.
 @MainActor
 final class GooglePlacesAPIService {
     // Singleton
     static let shared = GooglePlacesAPIService()
-
     private init() {}
+
+    private let baseURL = "https://places.googleapis.com/v1/"
+    private let session = URLSession.shared
+    private let decoder = JSONDecoder()
 
     // MARK: - Public Async API
 
-    /// Fetches `PlaceDetails` for the given Place ID using the Places *Details* endpoint.
-    /// - Parameter placeID: The Google Place ID.
-    /// - Returns: A populated `PlaceDetails` struct.
-    func placeDetails(for placeID: String) async throws -> PlaceDetails {
-        let url = try buildDetailsURL(placeID: placeID)
-        let (data, _) = try await URLSession.shared.data(from: url)
-        let apiResponse = try JSONDecoder().decode(GMSPlaceDetailsResponse.self, from: data)
-        guard apiResponse.status == "OK", let result = apiResponse.result else {
-            throw APIError.invalidServerResponse(apiResponse.status ?? "UNKNOWN_STATUS")
-        }
-        return result.toPlaceDetails()
-    }
-
-    /// Convenience wrapper around `findPlaceID(for:)` followed by `placeDetails(for:)`.
+    /// Fetches `PlaceDetails` for a given text query using the Places *Text Search (New)* endpoint.
+    /// This is the primary method for finding a place.
     /// - Parameter textQuery: Free-form text (e.g., place name + optional address).
-    func placeDetails(forTextQuery textQuery: String) async throws -> PlaceDetails {
-        let placeID = try await findPlaceID(for: textQuery)
-        return try await placeDetails(for: placeID)
+    /// - Parameter coordinate: The coordinate to bias search results towards, improving accuracy.
+    func placeDetails(forQuery textQuery: String, at coordinate: CLLocationCoordinate2D? = nil) async throws -> PlaceDetails {
+        guard let apiKey = apiKey else { throw APIError.missingAPIKey }
+
+        let url = URL(string: baseURL + "places:searchText")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "X-Goog-Api-Key")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Field mask specifies which fields to return, reducing cost and data usage.
+        request.setValue("places.displayName,places.formattedAddress,places.location,places.photos", forHTTPHeaderField: "X-Goog-FieldMask")
+
+        let locationBias: NewAPI.LocationBias?
+        if let coord = coordinate {
+            let location = NewAPI.Location(latitude: coord.latitude, longitude: coord.longitude)
+            // A circle with a 1km radius is a reasonable bias
+            let circle = NewAPI.Circle(center: location, radius: 1000)
+            locationBias = NewAPI.LocationBias(circle: circle)
+        } else {
+            locationBias = nil
+        }
+        
+        let requestBody = NewAPI.SearchRequest(
+            textQuery: textQuery,
+            languageCode: Locale.preferredLanguages.first ?? "en",
+            locationBias: locationBias
+        )
+        
+        request.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.invalidServerResponse("Status code: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+        }
+
+        let apiResponse = try decoder.decode(NewAPI.SearchResponse.self, from: data)
+        guard let place = apiResponse.places?.first else {
+            throw APIError.placeNotFound(textQuery)
+        }
+
+        // Determine photo reference. If not provided in the search response, fetch via details endpoint.
+        var photoRef = place.photos?.first?.name
+        if photoRef == nil, let resourceName = place.name {
+            photoRef = try await fetchFirstPhotoName(resourceName: resourceName)
+        }
+
+        let resultCoordinate = CLLocationCoordinate2D(
+            latitude: place.location?.latitude ?? 0,
+            longitude: place.location?.longitude ?? 0
+        )
+
+        return PlaceDetails(
+            name: place.displayName?.text ?? "Unnamed Place",
+            address: place.formattedAddress ?? "",
+            coordinate: resultCoordinate,
+            photoReference: photoRef
+        )
     }
 
     /// Returns the full URL for a photo associated with a place.
-    /// Google does not return direct image URLs – you must use their *Photo* endpoint with a `photo_reference`.
+    /// The new API requires the photo's `name` as the reference.
     func photoURL(for reference: String, maxWidth: Int = 400) -> URL? {
         guard let key = apiKey, !reference.isEmpty else { return nil }
-        var comps = URLComponents(string: "https://maps.googleapis.com/maps/api/place/photo")
-        comps?.queryItems = [
-            URLQueryItem(name: "maxwidth", value: "\(maxWidth)"),
-            URLQueryItem(name: "photoreference", value: reference),
-            URLQueryItem(name: "key", value: key)
-        ]
-        return comps?.url
-    }
-
-    // MARK: - Public Completion-Handler API (legacy callers)
-
-    func placeDetails(placeID: String, completion: @escaping (Result<PlaceDetails, Error>) -> Void) {
-        Task {
-            do {
-                let details = try await placeDetails(for: placeID)
-                completion(.success(details))
-            } catch {
-                completion(.failure(error))
-            }
-        }
-    }
-
-    func placeDetails(textQuery: String, completion: @escaping (Result<PlaceDetails, Error>) -> Void) {
-        Task {
-            do {
-                let details = try await placeDetails(forTextQuery: textQuery)
-                completion(.success(details))
-            } catch {
-                completion(.failure(error))
-            }
-        }
+        // The reference is the full resource name, e.g., "places/ChIJ.../photos/Aap..."
+        let urlString = "\(baseURL)\(reference)/media?maxWidthPx=\(maxWidth)&key=\(key)"
+        return URL(string: urlString)
     }
 
     // MARK: - Private Helpers
 
     /// Retrieves the API key from (1) a launch-time environment variable, or (2) `Info.plist`.
-    /// This lets you keep secrets out of the repo and swap keys per-scheme with ease.
+    // Helper to fetch first photo name when not present in text-search response
+    private func fetchFirstPhotoName(resourceName: String) async throws -> String? {
+        guard let apiKey = apiKey else { return nil }
+        let url = URL(string: "\(baseURL)\(resourceName)?fields=photos")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(apiKey, forHTTPHeaderField: "X-Goog-Api-Key")
+        let (data, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        struct PhotoOnlyResponse: Decodable { let photos: [NewAPI.Photo]? }
+        let resp = try decoder.decode(PhotoOnlyResponse.self, from: data)
+        return resp.photos?.first?.name
+    }
+
     private var apiKey: String? {
-        // 1. Xcode scheme → Run → Environment Variables
         if let envKey = ProcessInfo.processInfo.environment["GOOGLE_API_KEY"], !envKey.isEmpty {
             return envKey
         }
-        // 2. Fallback to bundled Info.plist (supports build-setting substitution)
         return Bundle.main.object(forInfoDictionaryKey: "GOOGLE_API_KEY") as? String
     }
+}
 
-    private func buildDetailsURL(placeID: String) throws -> URL {
-        guard let key = apiKey, !key.isEmpty else {
-            throw APIError.missingAPIKey
+// MARK: - New API DTOs & Models
+
+private enum NewAPI {
+    struct SearchRequest: Encodable {
+        let textQuery: String
+        let languageCode: String
+        let locationBias: LocationBias?
+    }
+
+    // A circular region to bias search results.
+    struct LocationBias: Encodable {
+        let circle: Circle
+    }
+
+    struct Circle: Encodable {
+        let center: Location
+        let radius: Double
+    }
+
+    struct SearchResponse: Decodable {
+        let places: [Place]?
+    }
+
+    struct Place: Decodable {
+        let name: String? // Note: This is the resource name, not the display name.
+        let displayName: DisplayName?
+        let formattedAddress: String?
+        let location: Location?
+        let photos: [Photo]?
+
+        func toPlaceDetails() -> PlaceDetails {
+            let coordinate = CLLocationCoordinate2D(
+                latitude: location?.latitude ?? 0,
+                longitude: location?.longitude ?? 0
+            )
+            return PlaceDetails(
+                name: displayName?.text ?? "Unnamed Place",
+                address: formattedAddress ?? "",
+                coordinate: coordinate,
+                photoReference: photos?.first?.name
+            )
         }
-        var comps = URLComponents(string: "https://maps.googleapis.com/maps/api/place/details/json")
-        comps?.queryItems = [
-            URLQueryItem(name: "place_id", value: placeID),
-            URLQueryItem(name: "fields", value: "name,formatted_address,geometry,photos"),
-            URLQueryItem(name: "key", value: key),
-            URLQueryItem(name: "language", value: Locale.preferredLanguages.first ?? "en")
-        ]
-        guard let url = comps?.url else { throw APIError.invalidURL }
-        return url
     }
 
-    private func buildFindPlaceURL(query: String) throws -> URL {
-        guard let key = apiKey, !key.isEmpty else { throw APIError.missingAPIKey }
-        var comps = URLComponents(string: "https://maps.googleapis.com/maps/api/place/findplacefromtext/json")
-        comps?.queryItems = [
-            URLQueryItem(name: "input", value: query),
-            URLQueryItem(name: "inputtype", value: "textquery"),
-            URLQueryItem(name: "fields", value: "place_id"),
-            URLQueryItem(name: "key", value: key),
-            URLQueryItem(name: "language", value: Locale.preferredLanguages.first ?? "en")
-        ]
-        guard let url = comps?.url else { throw APIError.invalidURL }
-        return url
+    struct DisplayName: Decodable {
+        let text: String?
+        let languageCode: String?
     }
 
-    private func findPlaceID(for textQuery: String) async throws -> String {
-        let url = try buildFindPlaceURL(query: textQuery)
-        let (data, _) = try await URLSession.shared.data(from: url)
-        let apiResponse = try JSONDecoder().decode(GMSFindPlaceResponse.self, from: data)
-        guard apiResponse.status == "OK", let placeID = apiResponse.candidates?.first?.place_id else {
-            throw APIError.placeNotFound(textQuery)
-        }
-        return placeID
+    struct Location: Codable {
+        let latitude: Double?
+        let longitude: Double?
     }
-}
 
-// MARK: - Response DTOs
-
-private struct GMSPlaceDetailsResponse: Decodable {
-    let status: String?
-    let result: GMSPlaceResult?
-}
-
-private struct GMSPlaceResult: Decodable {
-    let name: String?
-    let formatted_address: String?
-    let geometry: GMSGeometry?
-    let photos: [GMSPhoto]?
-
-    func toPlaceDetails() -> PlaceDetails {
-        let coord = geometry?.location ?? .init(lat: 0, lng: 0)
-        let coordinate = CLLocationCoordinate2D(latitude: coord.lat, longitude: coord.lng)
-        let photoRef = photos?.first?.photo_reference
-        return PlaceDetails(
-            name: name ?? "Unnamed Place",
-            address: formatted_address ?? "",
-            coordinate: coordinate,
-            photoReference: photoRef
-        )
+    struct Photo: Decodable {
+        /// The resource name of the photo, e.g., "places/{place_id}/photos/{photo_id}".
+        let name: String
     }
-}
-
-private struct GMSGeometry: Decodable {
-    let location: GMSLocation
-}
-
-private struct GMSLocation: Decodable {
-    let lat: Double
-    let lng: Double
-}
-
-private struct GMSPhoto: Decodable {
-    let photo_reference: String
-}
-
-private struct GMSFindPlaceResponse: Decodable {
-    let status: String?
-    let candidates: [GMSFindPlaceCandidate]?
-}
-
-private struct GMSFindPlaceCandidate: Decodable {
-    let place_id: String
 }
 
 // MARK: - Error Types
