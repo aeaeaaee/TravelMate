@@ -21,7 +21,8 @@ struct MapView: View {
     @State private var searchText = ""
     @State private var position: MapCameraPosition = .automatic
     @State private var selectedPlace: IdentifiablePlace?
-    @State private var selection: MKMapItem?
+    @State private var selection: MapKit.MapSelection<MKMapItem>?
+
 
     @State private var isLocationSelected = false // Tracks if a location is selected in the main search
     @State private var isInitialLocationSet = false // Tracks if the map has centered on the initial location.
@@ -89,7 +90,7 @@ struct MapView: View {
     // The view content for the "Map" tab.
     private var mapView: some View {
         ZStack {
-            // UIKit-backed map view with native POI tap support
+            // Compute pins / markers to show on the map
             let annotations: [CustomPointAnnotation] = {
                 var points: [CustomPointAnnotation] = []
                 if routeViewModel.routes.isEmpty && routeViewModel.transitRoutes.isEmpty, let place = selectedPlace {
@@ -103,25 +104,19 @@ struct MapView: View {
                 }
                 return points
             }()
+            // SwiftUIMap expects an array of MKMapItem
+            let mapItems: [MKMapItem] = annotations.map { $0.mapItem }
             
             if showTransitBaseMap {
                 TransitView()
                     .ignoresSafeArea()
             } else {
-                UIKitMapView(
-                    annotations: annotations,
+                SwiftUIMap(
+                    mapItems: mapItems,
                     overlayPolyline: routeViewModel.selectedRoute?.polyline ?? routeViewModel.selectedTransitRoute?.polyline,
                     position: $position,
-                    onSelect: { mapItem in
-                        if let item = mapItem {
-                            self.selection = item
-                        } else {
-                            // Deselect
-                            self.selection = nil
-                            self.showLocationDetailSheet = false
-                            self.isLocationSelected = false
-                        }
-                    },
+                    selection: $selection,
+
                     onRegionChange: { region in
                         // Track visible region for zoom buttons and keep the SwiftUI camera binding in sync with user pans.
                         self.visibleRegion = region
@@ -178,14 +173,40 @@ struct MapView: View {
         withAnimation { position = .region(region) }
     }
     
-    private func handleMapSelectionChange(_ newSelection: MKMapItem?) {
-        guard let item = newSelection else { return }
-        selectedPlace = IdentifiablePlace(mapItem: item)
-        showLocationDetailSheet = true
-        isLocationSelected = true
-        let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-        let region = MKCoordinateRegion(center: item.placemark.coordinate, span: span)
-        withAnimation { position = .region(region) }
+    private func handleMapSelectionChange(_ newSelection: MapKit.MapSelection<MKMapItem>?) {
+        let mapItem: MKMapItem?
+
+        switch newSelection {
+        case .some(let selection):
+            // The user has selected something on the map. Now, determine what it was.
+            switch selection {
+            case .value(let item):
+                // This is a custom marker that we tagged with an MKMapItem.
+                mapItem = item
+            case .feature(let feature):
+                // This is a built-in point of interest (POI) selected by the user.
+                mapItem = feature.mapItem
+            @unknown default:
+                // Handle future cases gracefully.
+                mapItem = nil
+            }
+        case .none:
+            // The user has deselected everything.
+            mapItem = nil
+        }
+
+        // If we have a valid map item, show its details. Otherwise, hide the sheet.
+        if let finalMapItem = mapItem, finalMapItem.placemark.name != nil {
+            selectedPlace = IdentifiablePlace(mapItem: finalMapItem)
+            showLocationDetailSheet = true
+            isLocationSelected = true
+            let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            let region = MKCoordinateRegion(center: finalMapItem.placemark.coordinate, span: span)
+            withAnimation { position = .region(region) }
+        } else {
+            showLocationDetailSheet = false
+            isLocationSelected = false
+        }
     }
     
     private func handleTabChange(_ newTab: MapView.Tab) {
@@ -328,7 +349,8 @@ struct MapView: View {
 
                         Button(action: {
                             if let userLocation = locationManager.location {
-                                let userRegion = MKCoordinateRegion(center: userLocation.coordinate, span: position.region?.span ?? MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05))
+                                let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                                let userRegion = MKCoordinateRegion(center: userLocation.coordinate, span: span)
                                 withAnimation { position = .region(userRegion) }
                             }
                         }) {
