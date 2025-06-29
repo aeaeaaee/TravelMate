@@ -2,36 +2,93 @@ import Foundation
 import MapKit
 import Combine
 
+// MARK: - Placeholder for Transit Routing until detailed implementation
+enum APIServices {
+    /// Represents a transit route returned by a future backend/service.
+    /// Currently only stores the polyline so existing map overlay logic compiles.
+    struct TransitRoute: Identifiable, Hashable {
+        let id = UUID()
+        let polyline: MKPolyline
+    }
+}
+
 // ViewModel to contain all the logic for the RoutePlannerView.
+
+// Enum for different transport options, conforming to CaseIterable and Identifiable for Picker use.
+enum TransportType: String, CaseIterable, Identifiable {
+    case car = "Car"
+    case transit = "Public Transit"
+    case walking = "Walk"
+    
+    var id: String { self.rawValue }
+    
+    // Computed property to get the corresponding MapKit transport type.
+    var systemImageName: String {
+        switch self {
+        case .car:
+            return "car.fill"
+        case .transit:
+            return "tram.fill"
+        case .walking:
+            return "figure.walk"
+        }
+    }
+
+    var mkTransportType: MKDirectionsTransportType {
+        switch self {
+        case .car:
+            return .automobile
+        case .transit:
+            return .transit
+        case .walking:
+            return .walking
+        }
+    }
+}
+
 class RouteViewModel: ObservableObject {
     
     // Published properties to hold the state, which the View will observe.
     @Published var fromText = ""
     @Published var toText = ""
+    @Published var transportType: TransportType = .car
     
     @Published var fromItem: MKMapItem?
     @Published var toItem: MKMapItem?
+    @Published var routes: [MKRoute] = []
+    // Support for future transit routing (currently stubbed)
+    @Published var transitRoutes: [APIServices.TransitRoute] = []
+    @Published var selectedTransitRoute: APIServices.TransitRoute? = nil
+    @Published var selectedRoute: MKRoute? = nil
     
-    // Store the actual selected MKLocalSearchCompletion objects
     @Published var selectedFromResult: MKLocalSearchCompletion? = nil
     @Published var selectedToResult: MKLocalSearchCompletion? = nil
+
+    // MARK: - Helper Functions
+
+    func formattedTravelTime(time: TimeInterval) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .short // e.g., "1h 10m" or "25m"
+        return formatter.string(from: time) ?? ""
+    }
     
     // Services for handling search completions for the "From" and "To" fields.
     @Published var fromSearchService = LocationSearchService()
     @Published var toSearchService = LocationSearchService()
     
     private var cancellables: Set<AnyCancellable> = []
-    
+
     init() {
         // Set up subscribers to link text fields to search services.
         $fromText
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
                 guard let self = self else { return }
-                
+
                 let currentSelectedFullText = (self.selectedFromResult?.title ?? "") +
-                (self.selectedFromResult?.subtitle.isEmpty == false ? ", \(self.selectedFromResult?.subtitle ?? "")" : "")
-                
+                                              (self.selectedFromResult?.subtitle.isEmpty == false ? ", \(self.selectedFromResult?.subtitle ?? "")" : "")
+
                 if newText == currentSelectedFullText && self.selectedFromResult != nil {
                     // Text matches the selected item, and an item is indeed selected.
                     // This means the text field was populated by a selection.
@@ -46,15 +103,15 @@ class RouteViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
-        
+            
         $toText
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
                 guard let self = self else { return }
-                
+
                 let currentSelectedFullText = (self.selectedToResult?.title ?? "") +
-                (self.selectedToResult?.subtitle.isEmpty == false ? ", \(self.selectedToResult?.subtitle ?? "")" : "")
-                
+                                              (self.selectedToResult?.subtitle.isEmpty == false ? ", \(self.selectedToResult?.subtitle ?? "")" : "")
+
                 if newText == currentSelectedFullText && self.selectedToResult != nil {
                     // Text matches the selected item, and an item is indeed selected.
                     // Do NOT trigger a new search.
@@ -88,8 +145,7 @@ class RouteViewModel: ObservableObject {
                 if let error = error { print("Search Error: \(error)") }
                 return
             }
-            
-            // Update the correct field based on the 'forFromField' boolean.
+            // MARK: - Private Methods for Search Logic
             DispatchQueue.main.async {
                 let fullText = completion.title + (completion.subtitle.isEmpty ? "" : ", \(completion.subtitle)")
                 if forFromField {
@@ -103,6 +159,40 @@ class RouteViewModel: ObservableObject {
                     self.selectedToResult = completion // Store selected completion
                     self.toSearchService.searchResults = [] // Clear results to hide dropdown
                 }
+            }
+        }
+    }
+
+    func calculateRoutes(completion: @escaping (Bool) -> Void) {
+        self.selectedRoute = nil // Clear previously selected route
+        guard let from = fromItem, let to = toItem else {
+            completion(false)
+            return
+        }
+
+        let request = MKDirections.Request()
+        request.source = from
+        request.destination = to
+        request.transportType = self.transportType.mkTransportType
+        request.requestsAlternateRoutes = true
+
+        let directions = MKDirections(request: request)
+        directions.calculate { response, error in
+            guard let response = response, !response.routes.isEmpty else {
+                if let error = error {
+                    print("Route calculation error: \(error.localizedDescription)")
+                }
+                DispatchQueue.main.async {
+                    self.routes = []
+                    completion(false)
+                }
+                return
+            }
+
+            DispatchQueue.main.async {
+                let sortedRoutes = response.routes.sorted { $0.expectedTravelTime < $1.expectedTravelTime }
+                self.routes = Array(sortedRoutes.prefix(3))
+                completion(true)
             }
         }
     }
