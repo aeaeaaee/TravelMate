@@ -97,6 +97,12 @@ struct UIKitMapView: UIViewRepresentable {
         // POI / Annotation selection
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
             guard let annotation = view.annotation else { return }
+            // Ignore taps on the user's current location so it is not treated as a POI.
+            if annotation is MKUserLocation {
+                parent.onSelect(nil)
+                mapView.deselectAnnotation(annotation, animated: false)
+                return
+            }
             // Center map on the tapped annotation while keeping current zoom span
             let currentSpan = mapView.region.span
             let newRegion = MKCoordinateRegion(center: annotation.coordinate, span: currentSpan)
