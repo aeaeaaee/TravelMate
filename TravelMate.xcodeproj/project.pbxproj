@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 90;
 	objects = {
 
 /* Begin PBXContainerItemProxy section */
@@ -63,24 +63,18 @@
 /* Begin PBXFrameworksBuildPhase section */
 		181A29EA2DF5629000CA1A4A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		181A29F72DF5629100CA1A4A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		181A2A012DF5629100CA1A4A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -118,14 +112,10 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			fileSystemSynchronizedGroups = (
 				181A29EF2DF5629000CA1A4A /* TravelMate */,
 			);
 			name = TravelMate;
-			packageProductDependencies = (
-			);
 			productName = TravelMate;
 			productReference = 181A29ED2DF5629000CA1A4A /* TravelMate.app */;
 			productType = "com.apple.product-type.application";
@@ -147,8 +137,6 @@
 				181A29FD2DF5629100CA1A4A /* TravelMateTests */,
 			);
 			name = TravelMateTests;
-			packageProductDependencies = (
-			);
 			productName = TravelMateTests;
 			productReference = 181A29FA2DF5629100CA1A4A /* TravelMateTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -170,8 +158,6 @@
 				181A2A072DF5629100CA1A4A /* TravelMateUITests */,
 			);
 			name = TravelMateUITests;
-			packageProductDependencies = (
-			);
 			productName = TravelMateUITests;
 			productReference = 181A2A042DF5629100CA1A4A /* TravelMateUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -210,7 +196,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 			);
-			preferredProjectObjectVersion = 77;
+			preferredProjectObjectVersion = 90;
 			productRefGroup = 181A29EE2DF5629000CA1A4A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -225,48 +211,36 @@
 /* Begin PBXResourcesBuildPhase section */
 		181A29EB2DF5629000CA1A4A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		181A29F82DF5629100CA1A4A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		181A2A022DF5629100CA1A4A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		181A29E92DF5629000CA1A4A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		181A29F62DF5629100CA1A4A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		181A2A002DF5629100CA1A4A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
@@ -284,7 +258,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		181A2A0C2DF5629100CA1A4A /* Debug */ = {
+		181A2A0C2DF5629100CA1A4A /* Debug configuration for PBXProject "TravelMate" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -347,7 +321,7 @@
 			};
 			name = Debug;
 		};
-		181A2A0D2DF5629100CA1A4A /* Release */ = {
+		181A2A0D2DF5629100CA1A4A /* Release configuration for PBXProject "TravelMate" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -403,7 +377,7 @@
 			};
 			name = Release;
 		};
-		181A2A0F2DF5629100CA1A4A /* Debug */ = {
+		181A2A0F2DF5629100CA1A4A /* Debug configuration for PBXNativeTarget "TravelMate" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -433,12 +407,12 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
-		181A2A102DF5629100CA1A4A /* Release */ = {
+		181A2A102DF5629100CA1A4A /* Release configuration for PBXNativeTarget "TravelMate" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -468,12 +442,12 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
-		181A2A122DF5629100CA1A4A /* Debug */ = {
+		181A2A122DF5629100CA1A4A /* Debug configuration for PBXNativeTarget "TravelMateTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -491,7 +465,7 @@
 			};
 			name = Debug;
 		};
-		181A2A132DF5629100CA1A4A /* Release */ = {
+		181A2A132DF5629100CA1A4A /* Release configuration for PBXNativeTarget "TravelMateTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -509,7 +483,7 @@
 			};
 			name = Release;
 		};
-		181A2A152DF5629100CA1A4A /* Debug */ = {
+		181A2A152DF5629100CA1A4A /* Debug configuration for PBXNativeTarget "TravelMateUITests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -525,7 +499,7 @@
 			};
 			name = Debug;
 		};
-		181A2A162DF5629100CA1A4A /* Release */ = {
+		181A2A162DF5629100CA1A4A /* Release configuration for PBXNativeTarget "TravelMateUITests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -547,37 +521,33 @@
 		181A29E82DF5629000CA1A4A /* Build configuration list for PBXProject "TravelMate" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				181A2A0C2DF5629100CA1A4A /* Debug */,
-				181A2A0D2DF5629100CA1A4A /* Release */,
+				181A2A0C2DF5629100CA1A4A /* Debug configuration for PBXProject "TravelMate" */,
+				181A2A0D2DF5629100CA1A4A /* Release configuration for PBXProject "TravelMate" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		181A2A0E2DF5629100CA1A4A /* Build configuration list for PBXNativeTarget "TravelMate" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				181A2A0F2DF5629100CA1A4A /* Debug */,
-				181A2A102DF5629100CA1A4A /* Release */,
+				181A2A0F2DF5629100CA1A4A /* Debug configuration for PBXNativeTarget "TravelMate" */,
+				181A2A102DF5629100CA1A4A /* Release configuration for PBXNativeTarget "TravelMate" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		181A2A112DF5629100CA1A4A /* Build configuration list for PBXNativeTarget "TravelMateTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				181A2A122DF5629100CA1A4A /* Debug */,
-				181A2A132DF5629100CA1A4A /* Release */,
+				181A2A122DF5629100CA1A4A /* Debug configuration for PBXNativeTarget "TravelMateTests" */,
+				181A2A132DF5629100CA1A4A /* Release configuration for PBXNativeTarget "TravelMateTests" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		181A2A142DF5629100CA1A4A /* Build configuration list for PBXNativeTarget "TravelMateUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				181A2A152DF5629100CA1A4A /* Debug */,
-				181A2A162DF5629100CA1A4A /* Release */,
+				181A2A152DF5629100CA1A4A /* Debug configuration for PBXNativeTarget "TravelMateUITests" */,
+				181A2A162DF5629100CA1A4A /* Release configuration for PBXNativeTarget "TravelMateUITests" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */

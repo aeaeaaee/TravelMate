@@ -22,6 +22,7 @@ struct MapView: View {
     @State private var position: MapCameraPosition = .automatic
     @State private var selectedPlace: IdentifiablePlace?
     @State private var selection: MapKit.MapSelection<MKMapItem>?
+    @State private var selectedMapFeature: MapFeature?
 
 
     @State private var isLocationSelected = false // Tracks if a location is selected in the main search
@@ -79,6 +80,9 @@ struct MapView: View {
         .onChange(of: selection) { _, newSelection in
             handleMapSelectionChange(newSelection)
         }
+        .onSubmit(of: .search) {
+            searchAndSelect(for: searchText)
+        }
         .onChange(of: selectedTab) { oldValue, newValue in
             handleTabChange(newValue)
         }
@@ -116,7 +120,6 @@ struct MapView: View {
                     overlayPolyline: routeViewModel.selectedRoute?.polyline ?? routeViewModel.selectedTransitRoute?.polyline,
                     position: $position,
                     selection: $selection,
-
                     onRegionChange: { region in
                         // Track visible region for zoom buttons and keep the SwiftUI camera binding in sync with user pans.
                         self.visibleRegion = region
@@ -174,40 +177,60 @@ struct MapView: View {
     }
     
     private func handleMapSelectionChange(_ newSelection: MapKit.MapSelection<MKMapItem>?) {
-        let mapItem: MKMapItem?
-
-        switch newSelection {
-        case .some(let selection):
-            // The user has selected something on the map. Now, determine what it was.
-            switch selection {
-            case .value(let item):
-                // This is a custom marker that we tagged with an MKMapItem.
-                mapItem = item
-            case .feature(let feature):
-                // This is a built-in point of interest (POI) selected by the user.
-                mapItem = feature.mapItem
-            @unknown default:
-                // Handle future cases gracefully.
-                mapItem = nil
-            }
-        case .none:
-            // The user has deselected everything.
-            mapItem = nil
+        guard let selection = newSelection else {
+            // When selection is cleared, dismiss the sheet.
+            showLocationDetailSheet = false
+            selectedMapFeature = nil
+            return
         }
 
-        // If we have a valid map item, show its details. Otherwise, hide the sheet.
-        if let finalMapItem = mapItem, finalMapItem.placemark.name != nil {
-            selectedPlace = IdentifiablePlace(mapItem: finalMapItem)
-            showLocationDetailSheet = true
+        // If the user selected a built-in POI, we get a MapFeature.
+        if let feature = selection.feature {
+            // Ensure we only respond to taps on actual points of interest.
+            guard feature.kind == .pointOfInterest else { return }
+            // A POI on the map was selected. Create a precise MKMapItem.
+            let placemark = MKPlacemark(coordinate: feature.coordinate)
+            let mapItem = MKMapItem(placemark: placemark)
+            mapItem.name = feature.title
+            showDetails(for: mapItem, from: feature)
+            
+            // Update UI to reflect the selection.
+            searchText = feature.title ?? ""
             isLocationSelected = true
-            let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            let region = MKCoordinateRegion(center: finalMapItem.placemark.coordinate, span: span)
-            withAnimation { position = .region(region) }
-        } else {
-            showLocationDetailSheet = false
-            isLocationSelected = false
+            searchService.searchResults = []
+            dismissKeyboard()
         }
     }
+
+    /// Shows the location detail sheet for a selected MKMapItem.
+    private func showDetails(for mapItem: MKMapItem, from feature: MapFeature? = nil) {
+        // If the call came from a POI tap, verify the coordinates match for safety.
+        if let feature = feature {
+            guard
+                mapItem.placemark.coordinate.latitude == feature.coordinate.latitude,
+                mapItem.placemark.coordinate.longitude == feature.coordinate.longitude
+            else {
+                // This should not happen in normal flow, but it's a critical safety check.
+                print("Error: Coordinate mismatch between the tapped MapFeature and the resulting MKMapItem.")
+                return
+            }
+        }
+        
+        // Ensure the item is valid before showing the sheet.
+        guard mapItem.placemark.name != nil else { return }
+
+        selectedPlace = IdentifiablePlace(mapItem: mapItem)
+        self.selectedMapFeature = feature
+        showLocationDetailSheet = true
+        isLocationSelected = true
+        
+        // Recenter the map on the selection, preserving the current zoom level.
+        let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        let region = MKCoordinateRegion(center: mapItem.placemark.coordinate, span: span)
+        withAnimation { position = .region(region) }
+    }
+
+
     
     private func handleTabChange(_ newTab: MapView.Tab) {
         if newTab == .journey || newTab == .settings {
@@ -284,7 +307,7 @@ struct MapView: View {
                     .background(Color(UIColor.systemBackground)).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 5, y: 3)
                     
                     // This is the "Directions/Go" button, separate from the TextField's internal buttons
-                    Button(action: { searchAndRoute(to: searchText) }) {
+                    Button(action: { searchAndSelect(for: searchText) }) {
                         Image(systemName: "arrow.right.circle.fill")
                             .font(.system(size: 32))
                             .foregroundColor(.accentColor)
@@ -406,7 +429,7 @@ struct MapView: View {
     @ViewBuilder
     private var locationDetailContent: some View {
         if let place = selectedPlace {
-            LocationView(selectedTab: $selectedTab, mapItem: place.mapItem)
+            LocationView(selectedTab: $selectedTab, mapItem: place.mapItem, mapFeature: selectedMapFeature)
                 .environmentObject(routeViewModel)
         } else {
             Text("No location details available.")
@@ -468,68 +491,49 @@ struct MapView: View {
     }
     
     private func handleMainSearchSelection(_ completion: MKLocalSearchCompletion) {
+        isSelectionInProgress = true
         let request = MKLocalSearch.Request(completion: completion)
         let search = MKLocalSearch(request: request)
         search.start { response, error in
-            guard let mapItem = response?.mapItems.first else {
-                
-                return
-            }
             DispatchQueue.main.async {
-                self.routeViewModel.routes = [] // Clear previous routes
-                self.routeViewModel.fromItem = nil // Clear previous 'From' marker data in ViewModel
-                self.routeViewModel.toItem = nil   // Clear previous 'To' marker data in ViewModel
-                self.selectedPlace = IdentifiablePlace(mapItem: mapItem)
-                if let coordinate = mapItem.placemark.location?.coordinate {
-                    let newRegion = MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
-                    withAnimation { self.position = .region(newRegion) }
+                self.isSelectionInProgress = false
+                if let mapItem = response?.mapItems.first {
+                    self.selectedPlace = IdentifiablePlace(mapItem: mapItem)
+                    self.selectedMapFeature = nil // Search results don't have a map feature
+                    self.searchText = mapItem.name ?? ""
+                    self.isLocationSelected = true
+                    self.searchService.searchResults = []
+                    self.dismissKeyboard()
+                    if let coordinate = mapItem.placemark.location?.coordinate {
+                        let newRegion = MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
+                        withAnimation { self.position = .region(newRegion) }
+                    }
                 }
-                isSelectionInProgress = true
-                self.searchText = "\(mapItem.name ?? ""), \(mapItem.placemark.title ?? "")"
-                self.isLocationSelected = true
-                self.searchService.searchResults = []
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: {
-                    isSelectionInProgress = false
-                })
             }
         }
     }
 
-    private func searchAndRoute(to query: String) {
-        guard let userLocation = locationManager.location else { return }
-
+    private func searchAndSelect(for query: String) {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
-        request.region = MKCoordinateRegion(center: userLocation.coordinate, latitudinalMeters: 20000, longitudinalMeters: 20000)
+        if let region = visibleRegion {
+            request.region = region
+        }
 
         let search = MKLocalSearch(request: request)
         search.start { response, error in
-            guard let destinationItem = response?.mapItems.first else {
-                
-                return
-            }
-            let sourceItem = MKMapItem(placemark: MKPlacemark(coordinate: userLocation.coordinate))
-            
             DispatchQueue.main.async {
-                // Set items in the shared view model and calculate the route
-                self.routeViewModel.fromItem = sourceItem
-                self.routeViewModel.toItem = destinationItem
-                self.routeViewModel.calculateRoutes { success in
-                    // The onChange modifier on routes will handle camera changes.
-                    if success {
-                        
+                if let mapItem = response?.mapItems.first {
+                    self.selectedPlace = IdentifiablePlace(mapItem: mapItem)
+                    self.selectedMapFeature = nil // Search results don't have a map feature
+                    self.searchText = mapItem.name ?? ""
+                    self.isLocationSelected = true
+                    self.searchService.searchResults = []
+                    self.dismissKeyboard()
+                    if let coordinate = mapItem.placemark.location?.coordinate {
+                        let newRegion = MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
+                        withAnimation { self.position = .region(newRegion) }
                     }
-                }
-                
-                // Update UI
-                isSelectionInProgress = true
-                self.searchText = "\(destinationItem.name ?? ""), \(destinationItem.placemark.title ?? "")"
-                self.isLocationSelected = true
-                self.searchService.searchResults = []
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isSelectionInProgress = false
                 }
             }
         }

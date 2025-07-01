@@ -1,6 +1,11 @@
 import SwiftUI
 import MapKit
 
+// MARK: - MapSelection helpers
+
+
+
+
 /// SwiftUI-native replacement for `UIKitMapView`.
 ///
 /// It mimics the same public API so that `MapView` can adopt it with minimal
@@ -19,7 +24,7 @@ struct SwiftUIMap: View {
     @Binding var selection: MapKit.MapSelection<MKMapItem>?
 
     // Closure equivalent of UIKitMapView’s delegate callback
-    let onRegionChange: (MKCoordinateRegion) -> Void
+            let onRegionChange: (MKCoordinateRegion) -> Void
 
     // Pre-filter items once to reduce work in Map's ViewBuilder
     /// Lightweight wrapper so each annotation is Identifiable and the `ForEach` stays trivial.
@@ -39,7 +44,7 @@ struct SwiftUIMap: View {
 
     // MARK: ‑ Body
     var body: some View {
-        MapViewContent(position: $position,
+                MapViewContent(position: $position,
                          selection: $selection,
                          annotationItems: annotationItems,
                          overlayPolyline: overlayPolyline)
@@ -47,6 +52,7 @@ struct SwiftUIMap: View {
             .onMapCameraChange { context in
                 onRegionChange(context.region)
             }
+
     }
 
     // MARK: ‑ Helpers
@@ -59,7 +65,7 @@ struct SwiftUIMap: View {
         let overlayPolyline: MKPolyline?
 
         var body: some View {
-            let aMap = Map(position: $position, selection: $selection) {
+            Map(position: $position, selection: $selection) {
                 // Built-in annotation that shows the user’s current location (blue dot)
                 UserAnnotation()
                 
@@ -72,10 +78,14 @@ struct SwiftUIMap: View {
                         .stroke(.blue, lineWidth: 5)
                 }
             }
-
-            aMap
-                .mapStyle(.standard)
+            .mapStyle(.standard)
+            .mapFeatureSelectionDisabled { feature in
+                feature.kind == .physicalFeature || feature.kind == .territory
+            }
         }
+
+                
+
 
         /// Helper function to build the marker, isolating it for the type-checker.
         private func marker(for data: AnnotationItem) -> some MapContent {
@@ -130,9 +140,7 @@ struct SwiftUIMap_Previews: PreviewProvider {
                 overlayPolyline: nil,
                 position: $position,
                 selection: $selection,
-
-                onRegionChange: { _ in }
-            )
+                onRegionChange: { _ in })
         }
     }
 

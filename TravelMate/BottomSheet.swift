@@ -17,7 +17,7 @@ enum Detent: CaseIterable, Comparable {
 // MARK: - PreferenceKey for Content Height
 /// A preference key to pass the sheet's content height up the view hierarchy.
 private struct SheetContentHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }

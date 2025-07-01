@@ -46,6 +46,7 @@ enum TransportType: String, CaseIterable, Identifiable {
     }
 }
 
+@MainActor
 class RouteViewModel: ObservableObject {
     
     // Published properties to hold the state, which the View will observe.

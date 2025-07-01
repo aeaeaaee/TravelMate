@@ -52,7 +52,7 @@ final class GooglePlacesAPIService {
     static let shared = GooglePlacesAPIService()
     private init() {}
 
-    private let baseURL = "https://places.googleapis.com/v1/"
+    private let baseURL = "https://places.googleapis.com/v1"
     private let session = URLSession.shared
     private let decoder = JSONDecoder()
 
@@ -65,7 +65,7 @@ final class GooglePlacesAPIService {
     func placeDetails(forQuery textQuery: String, at coordinate: CLLocationCoordinate2D? = nil) async throws -> PlaceDetails {
         guard let apiKey = apiKey else { throw APIError.missingAPIKey }
 
-        let url = URL(string: baseURL + "places:searchText")!
+        let url = URL(string: baseURL + "/places:searchText")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "X-Goog-Api-Key")
@@ -76,8 +76,8 @@ final class GooglePlacesAPIService {
         let locationBias: NewAPI.LocationBias?
         if let coord = coordinate {
             let location = NewAPI.Location(latitude: coord.latitude, longitude: coord.longitude)
-            // A circle with a 1km radius is a reasonable bias
-            let circle = NewAPI.Circle(center: location, radius: 1000)
+            // A very small radius ensures we get the place at the exact coordinate.
+            let circle = NewAPI.Circle(center: location, radius: 1.0)
             locationBias = NewAPI.LocationBias(circle: circle)
         } else {
             locationBias = nil
@@ -125,7 +125,7 @@ final class GooglePlacesAPIService {
     func photoURL(for reference: String, maxWidth: Int = 400) -> URL? {
         guard let key = apiKey, !reference.isEmpty else { return nil }
         // The reference is the full resource name, e.g., "places/ChIJ.../photos/Aap..."
-        let urlString = "\(baseURL)\(reference)/media?maxWidthPx=\(maxWidth)&key=\(key)"
+        let urlString = "\(baseURL)/\(reference)/media?maxWidthPx=\(maxWidth)&key=\(key)"
         return URL(string: urlString)
     }
 
@@ -135,7 +135,7 @@ final class GooglePlacesAPIService {
     // Helper to fetch first photo name when not present in text-search response
     private func fetchFirstPhotoName(resourceName: String) async throws -> String? {
         guard let apiKey = apiKey else { return nil }
-        let url = URL(string: "\(baseURL)\(resourceName)?fields=photos")!
+        let url = URL(string: "\(baseURL)/\(resourceName)?fields=photos")!
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(apiKey, forHTTPHeaderField: "X-Goog-Api-Key")
