@@ -1,6 +1,11 @@
 import SwiftUI
 import MapKit
 
+// MKLookAroundSceneRequest is used locally within a @Sendable context; mark as unchecked Sendable for Swift concurrency.
+extension MKLookAroundSceneRequest: @unchecked Sendable {}
+// MKLookAroundScene is used only for value extraction inside Sendable closures; mark as unchecked Sendable.
+extension MKLookAroundScene: @unchecked Sendable {}
+
 struct LocationView: View {
     // State variables for Look Around scene
     @State private var lookAroundScene: MKLookAroundScene? = nil
@@ -9,6 +14,7 @@ struct LocationView: View {
     @Environment(\.openURL) var openURL
     @Binding var selectedTab: MapView.Tab // Use MapView.Tab as confirmed by user
     let mapItem: MKMapItem
+    let mapFeature: MapFeature?
     @State private var isFavorite: Bool = false
     // Google Places photo URL
     @State private var placePhotoURL: URL? = nil
@@ -149,7 +155,7 @@ struct LocationView: View {
         }
     }
 
-    // Function to fetch the Look Around scene
+        // Function to fetch the Look Around scene
 
     private func fetchLookAroundScene(for coordinate: CLLocationCoordinate2D) async {
         let request = MKLookAroundSceneRequest(coordinate: coordinate)
@@ -177,8 +183,7 @@ struct LocationView: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            // Display Google Places photo if available
-
+            // Display Google Places photo if available, otherwise fall back to MapKit's native POI image.
             if let url = placePhotoURL {
                 ZStack(alignment: .bottomTrailing) {
                     AsyncImage(url: url) { phase in
@@ -206,13 +211,6 @@ struct LocationView: View {
                                     .padding()
                                 )
                         @unknown default:
-                            VStack(spacing: 8) {
-                                Image(systemName: "eye.slash")
-                                    .font(.system(size: 40))
-                                Text("Photos are not available for this location")
-                                    .font(.footnote)
-                                    .multilineTextAlignment(.center)
-                            }
                             Color(.systemGray5)
                         }
                     }
@@ -221,12 +219,14 @@ struct LocationView: View {
                     .cornerRadius(10)
 
                     // Google Images overlay button (only shown when photo is present)
-                    Button {
-                        let queryString = ((mapItem.name ?? "") + " " + (placeDetails?.address ?? "")).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                        if let imgURL = URL(string: "https://www.google.com/search?tbm=isch&q=\(queryString)") {
+                    Button(action: {
+                        let name = mapFeature?.title ?? mapItem.name ?? ""
+                        // Use only the location name for the search query for simplicity and to avoid context errors.
+                        let queryString = name.trimmingCharacters(in: .whitespacesAndNewlines).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                        if let imgURL = URL(string: "https://www.google.com/search?tbm=isch&q=\(queryString)"), !queryString.isEmpty {
                             openURL(imgURL)
                         }
-                    } label: {
+                    }) {
                         HStack(spacing: 4) {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 14))
@@ -241,6 +241,39 @@ struct LocationView: View {
                     .padding(8)
                 }
                 .frame(height: 200)
+                .padding(.bottom, 10)
+            } else if let image = mapFeature?.image {
+                ZStack(alignment: .bottomTrailing) {
+                    image
+                        .resizable()
+                        .scaledToFill()
+
+                    // Google Images overlay button
+                    Button(action: {
+                        // Use mapItem details for the query string for robustness
+                        let name = mapFeature?.title ?? mapItem.name ?? ""
+                        // Use only the location name for the search query for simplicity and to avoid context errors.
+                        let queryString = name.trimmingCharacters(in: .whitespacesAndNewlines).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                        if let imgURL = URL(string: "https://www.google.com/search?tbm=isch&q=\(queryString)"), !queryString.isEmpty {
+                            openURL(imgURL)
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 14))
+                            Text("Image Search")
+                                .font(.caption.bold())
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 6))
+                    }
+                    .padding(8)
+                }
+                .frame(height: 200)
+                .clipped()
+                .cornerRadius(10)
                 .padding(.bottom, 10)
             } else {
                 if placeDetails == nil && !photoFetchTimedOut {
@@ -277,7 +310,7 @@ struct LocationView: View {
                     // Name, flag, and category stacked vertically
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
-                            Text(mapItem.name ?? "Unknown Location")
+                            Text(mapFeature?.title ?? mapItem.name ?? "Unknown Location")
                                 .font(.title2)
                                 .fontWeight(.bold)
                             if let flag = countryFlag {
@@ -388,12 +421,13 @@ struct LocationView: View {
         }
         .padding()
         .task(id: mapItem) {
+
             // Fetch Google Places photo when selected location changes
             placePhotoURL = nil
             placeDetails = nil
             photoFetchTimedOut = false
             // Use only the name for the query, relying on the coordinate bias for accuracy.
-            let query = mapItem.name ?? ""
+            let query = mapFeature?.title ?? mapItem.name ?? ""
             // Start a 5-second timeout timer in parallel
             Task {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -429,7 +463,7 @@ struct LocationView: View {
             mapItem.pointOfInterestCategory = .park
             mapItem.phoneNumber = "+1 (310) 458-8900"
 
-            return LocationView(selectedTab: $previewSelectedTab, mapItem: mapItem)
+            return LocationView(selectedTab: $previewSelectedTab, mapItem: mapItem, mapFeature: nil)
                 .environmentObject(RouteViewModel())
                 .frame(height: 300)
                 .background(Color(UIColor.systemBackground))
