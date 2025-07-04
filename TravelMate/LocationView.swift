@@ -23,62 +23,18 @@ struct LocationView: View {
     // Indicates we waited long enough and still have no place details.
     @State private var photoFetchTimedOut: Bool = false
 
-    // Helper to get a user-friendly category string
+    /// Determines the most relevant Point of Interest category, prioritizing the tapped map feature.
+    private var pointOfInterestCategory: MKPointOfInterestCategory? {
+        mapFeature?.pointOfInterestCategory ?? mapItem.pointOfInterestCategory
+    }
+
+    // Helper to get a user-friendly category string via centralized utility
     private var categoryString: String {
-        guard let category = mapItem.pointOfInterestCategory else {
-            // Fallback for general locations or places without a specific category
-            if let areaOfInterest = mapItem.placemark.areasOfInterest?.first {
-                return areaOfInterest
-            }
-            return "Location"
+        let base = POINameAndIcon.POIName(for: pointOfInterestCategory)
+        if base == "Place", let aoi = mapItem.placemark.areasOfInterest?.first {
+            return aoi
         }
-        
-        // You can expand this to be more descriptive based on MKPointOfInterestCategory cases
-        switch category {
-        case .airport: return "Airport"
-        case .atm: return "ATM"
-        case .bakery: return "Bakery"
-        case .bank: return "Bank"
-        case .beach: return "Beach"
-        case .cafe: return "Cafe"
-        case .campground: return "Campground"
-        case .carRental: return "Car Rental"
-        case .evCharger: return "EV Charger"
-        case .fireStation: return "Fire Station"
-        case .fitnessCenter: return "Fitness Center"
-        case .foodMarket: return "Food Market"
-        case .gasStation: return "Gas Station"
-        case .hospital: return "Hospital"
-        case .hotel: return "Hotel"
-        case .laundry: return "Laundry"
-        case .library: return "Library"
-        case .marina: return "Marina"
-        case .movieTheater: return "Movie Theater"
-        case .museum: return "Museum"
-        case .nationalPark: return "National Park"
-        case .nightlife: return "Nightlife"
-        case .park: return "Park"
-        case .parking: return "Parking"
-        case .pharmacy: return "Pharmacy"
-        case .police: return "Police"
-        case .postOffice: return "Post Office"
-        case .publicTransport: return "Public Transport"
-        case .restaurant: return "Restaurant"
-        case .restroom: return "Restroom"
-        case .school: return "School"
-        case .stadium: return "Stadium"
-        case .store: return "Store"
-        case .theater: return "Theater"
-        case .university: return "University"
-        case .winery: return "Winery"
-        case .zoo: return "Zoo"
-        default:
-            let rawDescription = category.rawValue
-            if rawDescription.starts(with: "MKPOICategory") {
-                return String(rawDescription.dropFirst("MKPOICategory".count))
-            }
-            return rawDescription.isEmpty ? "Place" : rawDescription
-        }
+        return base
     }
 
     private var countryFlag: String? {
@@ -92,70 +48,36 @@ struct LocationView: View {
         return s.isEmpty ? nil : s
     }
 
+    /// Provides a localized country name using the placemark's ISO country code for reliable context.
+    private var locationContext: String {
+        guard let countryCode = mapItem.placemark.isoCountryCode else { return "" }
+        return Locale.current.localizedString(forRegionCode: countryCode) ?? ""
+    }
+
+    /// Combines category and location context for a clean, readable subtitle.
+    private var subtitleString: String {
+        let context = locationContext
+        var subtitleItems: [String] = []
+        if !categoryString.isEmpty {
+            subtitleItems.append(categoryString)
+        }
+        if !context.isEmpty {
+            subtitleItems.append(context)
+        }
+        return subtitleItems.joined(separator: " • ")
+    }
+
+    // SF Symbol name for the category glyph
     private var categoryIconName: String {
-        guard let category = mapItem.pointOfInterestCategory else {
-            return "mappin.and.ellipse" // A generic location icon
-        }
-        
-        switch category {
-        case .airport: return "airplane"
-        case .atm: return "creditcard.fill"
-        case .bakery: return "birthday.cake.fill"
-        case .bank: return "building.columns.fill"
-        case .beach: return "beach.umbrella.fill"
-        case .cafe: return "cup.and.saucer.fill"
-        case .campground: return "tent.fill"
-        case .carRental: return "car.fill"
-        case .evCharger: return "bolt.car.fill"
-        case .fireStation: return "flame.fill"
-        case .fitnessCenter: return "figure.run"
-        case .foodMarket: return "cart.fill"
-        case .gasStation: return "fuelpump.fill"
-        case .hospital: return "cross.case.fill"
-        case .hotel: return "bed.double.fill"
-        case .laundry: return "tshirt.fill"
-        case .library: return "books.vertical.fill"
-        case .marina: return "sailboat.fill"
-        case .movieTheater: return "film.fill"
-        case .museum: return "building.columns.fill"
-        case .nationalPark: return "tree.fill"
-        case .nightlife: return "music.mic"
-        case .park: return "leaf.fill"
-        case .parking: return "p.circle.fill"
-        case .pharmacy: return "pills.fill"
-        case .police: return "shield.lefthalf.filled"
-        case .postOffice: return "envelope.fill"
-        case .publicTransport: return "bus.fill"
-        case .restaurant: return "fork.knife"
-        case .restroom: return "figure.dress.line.vertical.figure"
-        case .school: return "graduationcap.fill"
-        case .stadium: return "sportscourt.fill"
-        case .store: return "storefront.fill"
-        case .theater: return "theatermasks.fill"
-        case .university: return "building.columns.fill"
-        case .winery: return "wineglass.fill"
-        case .zoo: return "tortoise.fill"
-        default:
-            return "mappin.and.ellipse"
-        }
+        POINameAndIcon.POIIconName(for: pointOfInterestCategory)
     }
 
+    // Background circle color for the category glyph
     private var categoryIconBackgroundColor: Color {
-        guard let category = mapItem.pointOfInterestCategory else { return .gray }
-        switch category {
-        case .restaurant, .bakery, .foodMarket: return .orange
-        case .park, .nationalPark, .campground, .beach, .zoo: return .green
-        case .hotel, .cafe, .winery: return .brown
-        case .airport, .publicTransport, .carRental, .gasStation: return .blue
-        case .museum, .library, .school, .university, .theater: return .purple
-        case .hospital, .pharmacy, .police, .fireStation: return .red
-        case .bank, .atm, .store: return .indigo
-        case .fitnessCenter, .stadium: return .cyan
-        default: return .secondary
-        }
+        POINameAndIcon.POIIconBackgroundColor(for: pointOfInterestCategory)
     }
 
-        // Function to fetch the Look Around scene
+    // Function to fetch the Look Around scene
 
     private func fetchLookAroundScene(for coordinate: CLLocationCoordinate2D) async {
         let request = MKLookAroundSceneRequest(coordinate: coordinate)
@@ -183,125 +105,75 @@ struct LocationView: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            // Display Google Places photo if available, otherwise fall back to MapKit's native POI image.
-            if let url = placePhotoURL {
+            // Display an image for the location, trying MapKit's image first, then Google's.
+            if mapFeature?.image != nil || placePhotoURL != nil {
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .empty:
-                            Color(.systemGray5)
-                                .overlay(
-                                    ProgressView()
-                                        .progressViewStyle(.circular)
-                                )
-                        case .success(let image):
-                            image.resizable()
+                    Group {
+                        if let image = mapFeature?.image {
+                            image
+                                .resizable()
                                 .scaledToFill()
+                        } else if let url = placePhotoURL {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                        case .empty:
+                                    Color(.systemGray5).overlay(ProgressView())
+                        case .success(let image):
+                                    image.resizable().scaledToFill()
                         case .failure:
-                            Color(.systemGray5)
-                                .overlay(
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "eye.slash")
-                                            .font(.system(size: 40))
-                                        Text("Photos are not available for this location")
-                                            .font(.footnote)
-                                            .multilineTextAlignment(.center)
-                                    }
-                                    .foregroundColor(.secondary)
-                                    .padding()
-                                )
-                        @unknown default:
-                            Color(.systemGray5)
+                                    Color(.systemGray5).overlay(Text("Image failed to load."))
+                                @unknown default:
+                                    Color(.systemGray5)
+                                }
+                            }
                         }
                     }
                     .frame(height: 200)
                     .clipped()
                     .cornerRadius(10)
 
-                    // Google Images overlay button (only shown when photo is present)
-                    Button(action: {
-                        let name = mapFeature?.title ?? mapItem.name ?? ""
-                        // Use only the location name for the search query for simplicity and to avoid context errors.
-                        let queryString = name.trimmingCharacters(in: .whitespacesAndNewlines).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                        if let imgURL = URL(string: "https://www.google.com/search?tbm=isch&q=\(queryString)"), !queryString.isEmpty {
-                            openURL(imgURL)
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 14))
-                            Text("Image Search")
-                                .font(.caption.bold())
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 6))
-                    }
-                    .padding(8)
-                }
-                .frame(height: 200)
-                .padding(.bottom, 10)
-            } else if let image = mapFeature?.image {
-                ZStack(alignment: .bottomTrailing) {
-                    image
-                        .resizable()
-                        .scaledToFill()
-
                     // Google Images overlay button
                     Button(action: {
-                        // Use mapItem details for the query string for robustness
                         let name = mapFeature?.title ?? mapItem.name ?? ""
-                        // Use only the location name for the search query for simplicity and to avoid context errors.
-                        let queryString = name.trimmingCharacters(in: .whitespacesAndNewlines).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                        let context = locationContext
+                        let fullQuery = [name, context].filter { !$0.isEmpty }.joined(separator: ", ")
+                        
+                        let queryString = fullQuery.trimmingCharacters(in: .whitespacesAndNewlines).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                         if let imgURL = URL(string: "https://www.google.com/search?tbm=isch&q=\(queryString)"), !queryString.isEmpty {
                             openURL(imgURL)
                         }
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "magnifyingglass")
-                                .font(.system(size: 14))
+                                .font(.caption)
                             Text("Image Search")
                                 .font(.caption.bold())
                         }
-                        .buttonStyle(.borderedProminent)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)
-                        .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 6))
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                     }
                     .padding(8)
                 }
                 .frame(height: 200)
-                .clipped()
-                .cornerRadius(10)
                 .padding(.bottom, 10)
             } else {
-                if placeDetails == nil && !photoFetchTimedOut {
-                    // Wait for 5 seconds, then show failure (Apple Map and Google Map POI different)
-                    Color(.systemGray5)
-                        .overlay(
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                        )
-                        .frame(height: 200)
-                        .padding(.bottom, 10)
-                } else {
-                    // Details fetched but no photo available – show failure overlay
-                    Color(.systemGray5)
-                        .overlay(
-                            VStack(spacing: 8) {
+                // Placeholder for when no image is available or is still loading.
+                Color(.systemGray5)
+                    .frame(height: 200)
+                    .padding(.bottom, 10)
+                    .overlay(
+                        // Show a progress view while waiting for the fetch, otherwise show failure icon.
+                        Group {
+                            if placeDetails == nil && !photoFetchTimedOut {
+                                ProgressView()
+                            } else {
                                 Image(systemName: "eye.slash")
                                     .font(.system(size: 40))
-                                Text("Photos are not available for this location")
-                                    .font(.footnote)
-                                    .multilineTextAlignment(.center)
+                                    .foregroundColor(.secondary)
                             }
-                            .foregroundColor(.secondary)
-                            .padding()
-                        )
-                        .frame(height: 200)
-                        .padding(.bottom, 10)
-                }
+                        }
+                    )
             }
 
             // Header with Title, Category, and Add Button
@@ -319,19 +191,32 @@ struct LocationView: View {
                             }
                         }
                         HStack {
-                            Text(categoryString)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            if !subtitleString.isEmpty {
+                                Text(subtitleString)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
 
-                            // Apple-style Category Icon
+                            // Apple-style Category Icon, using the specific feature's icon if available.
                             ZStack {
                                 Circle()
-                                    .fill(categoryIconBackgroundColor)
+                                    .fill(mapFeature?.backgroundColor ?? categoryIconBackgroundColor)
                                     .frame(width: 22, height: 22)
-                                Image(systemName: categoryIconName)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.white)
+                                if let featureIcon = mapFeature?.image {
+                                    featureIcon
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 22, height: 22)
+                                        .foregroundColor(.white)
+                                } else {
+                                    Image(systemName: categoryIconName)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.white)
+                                }
                             }
+                            .overlay(
+                                Circle().stroke(Color.white, lineWidth: 1.5)
+                            )
                         }
                     }
 
@@ -421,6 +306,9 @@ struct LocationView: View {
         }
         .padding()
         .task(id: mapItem) {
+
+            // Debug print for the point of interest category
+            print("LocationView: Displaying details for \(mapFeature?.title ?? mapItem.name ?? "Unknown"). Category: \(pointOfInterestCategory?.rawValue ?? "None")")
 
             // Fetch Google Places photo when selected location changes
             placePhotoURL = nil
