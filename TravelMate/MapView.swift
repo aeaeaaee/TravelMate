@@ -331,7 +331,7 @@ struct MapView: View {
                         .disabled(searchText.isEmpty && !isLocationSelected) // Keep disabled logic if appropriate
                     }
                     .padding(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
-                    .background(.thinMaterial)
+                    .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(radius: 5, y: 3)
                     
