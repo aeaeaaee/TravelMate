@@ -19,9 +19,11 @@ struct SwiftUIMap: View {
     // MARK: ‑ Public inputs
     let mapItems: [MKMapItem]
     let overlayPolyline: MKPolyline?
+    let highlightItem: MKMapItem?
 
     @Binding var position: MapCameraPosition
-    @Binding var selection: MapKit.MapSelection<MKMapItem>?
+
+    var onSelectionChange: ((MapKit.MapSelection<MKMapItem>?) -> Void)? = nil
 
     // Closure equivalent of UIKitMapView’s delegate callback
             let onRegionChange: (MKCoordinateRegion) -> Void
@@ -45,11 +47,13 @@ struct SwiftUIMap: View {
     // MARK: ‑ Body
     var body: some View {
                 MapViewContent(position: $position,
-                         selection: $selection,
+
                          annotationItems: annotationItems,
-                         overlayPolyline: overlayPolyline)
+                         overlayPolyline: overlayPolyline,
+                         highlightItem: highlightItem,
+                         onSelectionChange: onSelectionChange)
             
-            .onMapCameraChange { context in
+            .onMapCameraChange(frequency: .continuous) { context in
                 onRegionChange(context.region)
             }
 
@@ -60,55 +64,103 @@ struct SwiftUIMap: View {
     /// The core map view, isolated to help the compiler.
     private struct MapViewContent: View {
         @Binding var position: MapCameraPosition
-        @Binding var selection: MapKit.MapSelection<MKMapItem>?
         let annotationItems: [AnnotationItem]
         let overlayPolyline: MKPolyline?
+        let highlightItem: MKMapItem?
+        let onSelectionChange: ((MapKit.MapSelection<MKMapItem>?) -> Void)?
 
-        var body: some View {
-            Map(position: $position, selection: $selection) {
-                // Built-in annotation that shows the user’s current location (blue dot)
-                UserAnnotation()
-                
-                ForEach(annotationItems) { data in
-                    marker(for: data)
-                }
+        @State private var internalSelection: MapKit.MapSelection<MKMapItem>?
 
-                if let polyline = overlayPolyline {
-                    MapPolyline(polyline)
-                        .stroke(.blue, lineWidth: 5)
+        // Extracted annotation and overlay content for compiler clarity
+        @MapContentBuilder
+        private var annotationLayer: some MapContent {
+            defaultContent
+        }
+
+        // Single marker wrapped to reduce generic depth
+        private struct PinMarker: MapContent {
+            let data: AnnotationItem
+            let isSelected: Bool
+
+            @MapContentBuilder
+            var body: some MapContent {
+                let iconName = POINameAndIcon.POIIconName(for: data.item.pointOfInterestCategory)
+                let bg = POINameAndIcon.POIIconBackgroundColor(for: data.item.pointOfInterestCategory)
+                Annotation(data.item.name ?? "", coordinate: data.coord) {
+                    ZStack {
+                        Circle()
+                            .fill(bg)
+                            .frame(width: 30, height: 30)
+                            .shadow(color: .white.opacity(0.8), radius: 2)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.black.opacity(0.6), lineWidth: 1)
+                            )
+                        Image(systemName: iconName)
+                            .resizable()
+                            .symbolEffect(.pulse, value: isSelected)
+                            .scaledToFit()
+                            .frame(width: 18, height: 18)
+                            .foregroundColor(.white)
+                    }
                 }
-            }
-            .mapStyle(.standard)
-            .mapFeatureSelectionDisabled { feature in
-                feature.kind == .physicalFeature || feature.kind == .territory
+                .tag(data.item)
             }
         }
 
-                
+        // Marker layer split for compiler performance
+        @MapContentBuilder
+        private var markersContent: some MapContent {
+            ForEach(annotationItems) { data in
+                PinMarker(data: data, isSelected: highlightItem?.identifier == data.id)
+            }
+        }
 
+        // Wrap polyline overlay to further reduce generic complexity
+        private struct RouteOverlay: MapContent {
+            let polyline: MKPolyline
+            var body: some MapContent {
+                MapPolyline(polyline)
+                    .stroke(.blue, lineWidth: 5)
+            }
+        }
 
-        /// Helper function to build the marker, isolating it for the type-checker.
-        private func marker(for data: AnnotationItem) -> some MapContent {
-            Marker(data.item.name ?? "Location",
-                   systemImage: iconName(for: data.item.pointOfInterestCategory),
-                   coordinate: data.coord)
-                .tint(data.tint)
-                .tag(data.item)
-                
+        @MapContentBuilder
+        private var overlayContent: some MapContent {
+            if let polyline = overlayPolyline {
+                RouteOverlay(polyline: polyline)
+            }
+        }
+
+        @MapContentBuilder
+        private var defaultContent: some MapContent {
+            UserAnnotation()
+            markersContent
+            overlayContent
+        }
+
+        var body: some View {
+            let content = defaultContent
+            let baseMap = Map(position: $position, selection: $internalSelection) {
+                content
+            }
+            
+            return baseMap
+                .mapStyle(.standard)
+                .onChange(of: internalSelection) { _, newSelection in
+                    onSelectionChange?(newSelection)
+                }
+        }
+
+        private func categoryColor(for category: MKPointOfInterestCategory?) -> Color {
+            POINameAndIcon.POIIconBackgroundColor(for: category)
         }
 
         private func iconName(for category: MKPointOfInterestCategory?) -> String {
-            switch category {
-            case .cafe: return "cup.and.saucer.fill"
-            case .restaurant: return "fork.knife"
-            case .hotel: return "bed.double.fill"
-            case .bank: return "building.columns.fill"
-            case .airport: return "airplane"
-            case .publicTransport: return "bus.fill"
-            default: return "mappin"
-            }
+            POINameAndIcon.POIIconName(for: category)
         }
-    }
+
+        }
 
     private func pinTint(for item: MKMapItem) -> Color {
         guard let first = mapItems.first, let last = mapItems.last else { return .red }
@@ -138,8 +190,8 @@ struct SwiftUIMap_Previews: PreviewProvider {
             SwiftUIMap(
                 mapItems: sampleItems,
                 overlayPolyline: nil,
+                highlightItem: nil,
                 position: $position,
-                selection: $selection,
                 onRegionChange: { _ in })
         }
     }
