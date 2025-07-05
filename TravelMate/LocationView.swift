@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 
+<<<<<<< HEAD
 // MKLookAroundSceneRequest is used locally within a @Sendable context; mark as unchecked Sendable for Swift concurrency.
 extension MKLookAroundSceneRequest: @unchecked Sendable {}
 // MKLookAroundScene is used only for value extraction inside Sendable closures; mark as unchecked Sendable.
@@ -10,10 +11,14 @@ struct LocationView: View {
     // State variables for Look Around scene
     @State private var lookAroundScene: MKLookAroundScene? = nil
     @State private var isLookAroundAvailable: Bool = true // Assume available until proven otherwise
+=======
+struct LocationView: View {
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
     @EnvironmentObject var routeViewModel: RouteViewModel
     @Environment(\.openURL) var openURL
     @Binding var selectedTab: MapView.Tab // Use MapView.Tab as confirmed by user
     let mapItem: MKMapItem
+<<<<<<< HEAD
     let mapFeature: MapFeature?
     @State private var isFavorite: Bool = false
     // Google Places photo URL
@@ -35,6 +40,65 @@ struct LocationView: View {
             return aoi
         }
         return base
+=======
+
+    // Helper to get a user-friendly category string
+    private var categoryString: String {
+        guard let category = mapItem.pointOfInterestCategory else {
+            // Fallback for general locations or places without a specific category
+            if let areaOfInterest = mapItem.placemark.areasOfInterest?.first {
+                return areaOfInterest
+            }
+            return "Location"
+        }
+        
+        // You can expand this to be more descriptive based on MKPointOfInterestCategory cases
+        switch category {
+        case .airport: return "Airport"
+        case .atm: return "ATM"
+        case .bakery: return "Bakery"
+        case .bank: return "Bank"
+        case .beach: return "Beach"
+        case .cafe: return "Cafe"
+        case .campground: return "Campground"
+        case .carRental: return "Car Rental"
+        case .evCharger: return "EV Charger"
+        case .fireStation: return "Fire Station"
+        case .fitnessCenter: return "Fitness Center"
+        case .foodMarket: return "Food Market"
+        case .gasStation: return "Gas Station"
+        case .hospital: return "Hospital"
+        case .hotel: return "Hotel"
+        case .laundry: return "Laundry"
+        case .library: return "Library"
+        case .marina: return "Marina"
+        case .movieTheater: return "Movie Theater"
+        case .museum: return "Museum"
+        case .nationalPark: return "National Park"
+        case .nightlife: return "Nightlife"
+        case .park: return "Park"
+        case .parking: return "Parking"
+        case .pharmacy: return "Pharmacy"
+        case .police: return "Police"
+        case .postOffice: return "Post Office"
+        case .publicTransport: return "Public Transport"
+        case .restaurant: return "Restaurant"
+        case .restroom: return "Restroom"
+        case .school: return "School"
+        case .stadium: return "Stadium"
+        case .store: return "Store"
+        case .theater: return "Theater"
+        case .university: return "University"
+        case .winery: return "Winery"
+        case .zoo: return "Zoo"
+        default:
+            let rawDescription = category.rawValue
+            if rawDescription.starts(with: "MKPOICategory") {
+                return String(rawDescription.dropFirst("MKPOICategory".count))
+            }
+            return rawDescription.isEmpty ? "Place" : rawDescription
+        }
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
     }
 
     private var countryFlag: String? {
@@ -48,6 +112,7 @@ struct LocationView: View {
         return s.isEmpty ? nil : s
     }
 
+<<<<<<< HEAD
     /// Provides a localized country name using the placemark's ISO country code for reliable context.
     private var locationContext: String {
         guard let countryCode = mapItem.placemark.isoCountryCode else { return "" }
@@ -100,11 +165,74 @@ struct LocationView: View {
                 self.isLookAroundAvailable = false
             }
             print("Failed to fetch Look Around scene: \(error.localizedDescription)")
+=======
+    private var categoryIconName: String {
+        guard let category = mapItem.pointOfInterestCategory else {
+            return "mappin.and.ellipse" // A generic location icon
+        }
+        
+        switch category {
+        case .airport: return "airplane"
+        case .atm: return "creditcard.fill"
+        case .bakery: return "birthday.cake.fill"
+        case .bank: return "building.columns.fill"
+        case .beach: return "beach.umbrella.fill"
+        case .cafe: return "cup.and.saucer.fill"
+        case .campground: return "tent.fill"
+        case .carRental: return "car.fill"
+        case .evCharger: return "bolt.car.fill"
+        case .fireStation: return "flame.fill"
+        case .fitnessCenter: return "figure.run"
+        case .foodMarket: return "cart.fill"
+        case .gasStation: return "fuelpump.fill"
+        case .hospital: return "cross.case.fill"
+        case .hotel: return "bed.double.fill"
+        case .laundry: return "tshirt.fill"
+        case .library: return "books.vertical.fill"
+        case .marina: return "sailboat.fill"
+        case .movieTheater: return "film.fill"
+        case .museum: return "building.columns.fill"
+        case .nationalPark: return "tree.fill"
+        case .nightlife: return "music.mic"
+        case .park: return "leaf.fill"
+        case .parking: return "p.circle.fill"
+        case .pharmacy: return "pills.fill"
+        case .police: return "shield.lefthalf.filled"
+        case .postOffice: return "envelope.fill"
+        case .publicTransport: return "bus.fill"
+        case .restaurant: return "fork.knife"
+        case .restroom: return "figure.dress.line.vertical.figure"
+        case .school: return "graduationcap.fill"
+        case .stadium: return "sportscourt.fill"
+        case .store: return "storefront.fill"
+        case .theater: return "theatermasks.fill"
+        case .university: return "building.columns.fill"
+        case .winery: return "wineglass.fill"
+        case .zoo: return "tortoise.fill"
+        default:
+            return "mappin.and.ellipse"
+        }
+    }
+
+    private var categoryIconBackgroundColor: Color {
+        guard let category = mapItem.pointOfInterestCategory else { return .gray }
+        switch category {
+        case .restaurant, .bakery, .foodMarket: return .orange
+        case .park, .nationalPark, .campground, .beach, .zoo: return .green
+        case .hotel, .cafe, .winery: return .brown
+        case .airport, .publicTransport, .carRental, .gasStation: return .blue
+        case .museum, .library, .school, .university, .theater: return .purple
+        case .hospital, .pharmacy, .police, .fireStation: return .red
+        case .bank, .atm, .store: return .indigo
+        case .fitnessCenter, .stadium: return .cyan
+        default: return .secondary
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
         }
     }
 
     var body: some View {
         VStack(alignment: .leading) {
+<<<<<<< HEAD
             // Display an image for the location, trying MapKit's image first, then Google's.
             if mapFeature?.image != nil || placePhotoURL != nil {
                 ZStack(alignment: .bottomTrailing) {
@@ -235,6 +363,47 @@ struct LocationView: View {
             }
 
             // Stray '}' removed from here
+=======
+            // Header with Title, Category, and Add Button
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(mapItem.name ?? "Unknown Location")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    if let flag = countryFlag {
+                        Text(flag)
+                            .font(.title2) // Match name font size or adjust as preferred
+                    }
+                    Spacer()
+                    Button(action: {
+                        // Placeholder action for the "+" button
+                        print("Add button tapped for \(mapItem.name ?? "Unknown")")
+                    }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                    }
+                }
+                
+                HStack(spacing: 8) {
+                    Text(categoryString)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    // Apple-style Category Icon
+                    ZStack {
+                        Circle()
+                            .fill(categoryIconBackgroundColor)
+                            .frame(width: 22, height: 22) // Adjusted size to fit subheadline
+                        Image(systemName: categoryIconName)
+                            .font(.system(size: 12, weight: .medium)) // Adjusted size
+                            .foregroundColor(.white)
+                    }
+                    Spacer() // Add spacer to push icon and text to the left if add button is removed or placed elsewhere
+                }
+            }
+            
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
             Divider()
                 .padding(.bottom, 4.0)
             
@@ -283,14 +452,21 @@ struct LocationView: View {
                 .disabled(mapItem.url == nil)
                 .tint(mapItem.url == nil ? .gray : .green)
                 .frame(maxWidth: .infinity) // Make button take available width
+<<<<<<< HEAD
 
                 // Google Images search button (moved to photo overlay)
 
+=======
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
             }
             .padding(.bottom, 8) // Add some padding below the buttons
 
             VStack(alignment: .leading, spacing: 8) {
+<<<<<<< HEAD
                 if let address = placeDetails?.address ?? mapItem.placemark.title {
+=======
+                if let address = mapItem.placemark.title {
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
                     Text(address)
                         .font(.body)
                 }
@@ -305,6 +481,7 @@ struct LocationView: View {
             Spacer() // Pushes content to the top
         }
         .padding()
+<<<<<<< HEAD
         .task(id: mapItem) {
 
             // Debug print for the point of interest category
@@ -336,6 +513,8 @@ struct LocationView: View {
                 print("Failed to fetch Google Places details: \(error.localizedDescription)")
             }
         }
+=======
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
     }
 } // Correctly closing LocationView struct
 
@@ -351,7 +530,11 @@ struct LocationView: View {
             mapItem.pointOfInterestCategory = .park
             mapItem.phoneNumber = "+1 (310) 458-8900"
 
+<<<<<<< HEAD
             return LocationView(selectedTab: $previewSelectedTab, mapItem: mapItem, mapFeature: nil)
+=======
+            return LocationView(selectedTab: $previewSelectedTab, mapItem: mapItem)
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
                 .environmentObject(RouteViewModel())
                 .frame(height: 300)
                 .background(Color(UIColor.systemBackground))

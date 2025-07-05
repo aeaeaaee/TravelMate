@@ -17,7 +17,11 @@ enum Detent: CaseIterable, Comparable {
 // MARK: - PreferenceKey for Content Height
 /// A preference key to pass the sheet's content height up the view hierarchy.
 private struct SheetContentHeightPreferenceKey: PreferenceKey {
+<<<<<<< HEAD
     static let defaultValue: CGFloat = 0
+=======
+    static var defaultValue: CGFloat = 0
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
@@ -168,7 +172,11 @@ private struct BottomSheetModifier<SheetContent: View>: ViewModifier {
             return max(cappedContentHeight, 50) + handleHeight // Ensure a minimum visible height for peek content area
 
         case .half:
+<<<<<<< HEAD
             return containerSize.height * 0.8
+=======
+            return containerSize.height * 0.6
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
 
         case .full:
             return containerSize.height * 0.92

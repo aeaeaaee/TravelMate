@@ -27,7 +27,10 @@ struct RouteView: View {
             Map(position: $position)
             // Route drawing is now handled by the main map view.
             // .ignoresSafeArea() // Removed to respect safe areas, especially for bottom nav bar
+<<<<<<< HEAD
             
+=======
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
             
             // The main UI is now in a single VStack for a simpler, more reliable layout.
             VStack(spacing: 0) {
@@ -281,7 +284,11 @@ struct RouteView: View {
 
 #Preview {
     // For the preview, we pass a dummy view model and an empty closure.
+<<<<<<< HEAD
     RouteView(viewModel: RouteViewModel()) { 
+=======
+    RouteView(viewModel: RouteViewModel()) {
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
         print("Preview: Get Directions tapped.")
     }
     .environmentObject(LocationManager())

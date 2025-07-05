@@ -22,7 +22,10 @@ enum TransportType: String, CaseIterable, Identifiable {
     
     var id: String { self.rawValue }
     
+<<<<<<< HEAD
     // Computed property to get the corresponding MapKit transport type.
+=======
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
     var systemImageName: String {
         switch self {
         case .car:
@@ -33,7 +36,12 @@ enum TransportType: String, CaseIterable, Identifiable {
             return "figure.walk"
         }
     }
+<<<<<<< HEAD
 
+=======
+    
+    // Computed property to get the corresponding MapKit transport type.
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
     var mkTransportType: MKDirectionsTransportType {
         switch self {
         case .car:
@@ -46,7 +54,10 @@ enum TransportType: String, CaseIterable, Identifiable {
     }
 }
 
+<<<<<<< HEAD
 @MainActor
+=======
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
 class RouteViewModel: ObservableObject {
     
     // Published properties to hold the state, which the View will observe.
@@ -57,9 +68,12 @@ class RouteViewModel: ObservableObject {
     @Published var fromItem: MKMapItem?
     @Published var toItem: MKMapItem?
     @Published var routes: [MKRoute] = []
+<<<<<<< HEAD
     // Support for future transit routing (currently stubbed)
     @Published var transitRoutes: [APIServices.TransitRoute] = []
     @Published var selectedTransitRoute: APIServices.TransitRoute? = nil
+=======
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
     @Published var selectedRoute: MKRoute? = nil
     
     @Published var selectedFromResult: MKLocalSearchCompletion? = nil

@@ -12,14 +12,22 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     @Published var location: CLLocation?
     @Published var heading: CLHeading?
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
     override init() {
         super.init()
         self.locationManager.delegate = self
         self.locationManager.desiredAccuracy = kCLLocationAccuracyBest
         self.locationManager.requestWhenInUseAuthorization()
         self.locationManager.startUpdatingLocation()
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
         // Start updating heading if available
         if CLLocationManager.headingAvailable() {
             self.locationManager.startUpdatingHeading()
@@ -27,12 +35,16 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             print("Heading information is not available on this device.")
         }
     }
-
+    
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         self.location = location
     }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 8785f90ee5a7a942c19e1e3757edbdc88383c05b
     // Delegate method for heading updates
     func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
         // We only want to receive heading updates if the accuracy is good
