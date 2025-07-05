@@ -27,7 +27,7 @@ struct RouteView: View {
             // Route drawing is now handled by the main map view.
             // .ignoresSafeArea() // Removed to respect safe areas, especially for bottom nav bar
             
-            //<--START-->
+            
             // The main UI is now in a single VStack for a simpler, more reliable layout.
             VStack(spacing: 0) {
                 // Title and input fields container.
@@ -132,7 +132,7 @@ struct RouteView: View {
             .background(Color(UIColor.systemGroupedBackground))
             .contentShape(Rectangle())
             .onTapGesture { focusedField = nil }
-            //<--END-->
+            
         }
         .onAppear {
             viewModel.fromSearchService.currentLocation = locationManager.location
