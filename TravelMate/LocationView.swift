@@ -106,14 +106,10 @@ struct LocationView: View {
     var body: some View {
         VStack(alignment: .leading) {
             // Display an image for the location, trying MapKit's image first, then Google's.
-            if mapFeature?.image != nil || placePhotoURL != nil {
+            if placePhotoURL != nil {
                 ZStack(alignment: .bottomTrailing) {
                     Group {
-                        if let image = mapFeature?.image {
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        } else if let url = placePhotoURL {
+                        if let url = placePhotoURL {
                             AsyncImage(url: url) { phase in
                                 switch phase {
                         case .empty:

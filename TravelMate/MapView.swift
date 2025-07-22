@@ -215,7 +215,20 @@ struct MapView: View {
 
         self.selectedPlace = IdentifiablePlace(mapItem: mapItem)
         self.selectedMapFeature = feature
-        self.searchText = mapItem.name ?? ""
+        // Build a descriptive search text that includes both name and address when available.
+        let namePart = mapItem.name ?? ""
+        let addressPart = mapItem.placemark.title ?? ""
+        var combined = namePart
+        if !addressPart.isEmpty {
+            if addressPart.hasPrefix(namePart) {
+                combined = addressPart // Address already contains the name
+            } else if !namePart.isEmpty {
+                combined = "\(namePart), \(addressPart)"
+            } else {
+                combined = addressPart
+            }
+        }
+        self.searchText = combined
         self.isLocationSelected = true
         self.searchService.searchResults = []
         self.dismissKeyboard()
@@ -288,6 +301,7 @@ struct MapView: View {
                         TextField("Search for a destination", text: $searchText)
                             .foregroundColor(isLocationSelected ? .blue : .primary)
                             .focused($focusedField, equals: .main)
+                            .autocapitalization(.words)
                             .onChange(of: searchText) {
                                 // Only trigger a new search if the user is actively typing in the search field.
                                 if focusedField == .main {

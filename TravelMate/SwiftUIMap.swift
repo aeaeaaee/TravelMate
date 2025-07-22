@@ -90,7 +90,7 @@ struct SwiftUIMap: View {
                     ZStack {
                         Circle()
                             .fill(bg)
-                            .frame(width: 30, height: 30)
+                            .frame(width: 50.0, height: 50.0)
                             .shadow(color: .white.opacity(0.8), radius: 2)
                             .overlay(
                                 Circle()
@@ -100,7 +100,7 @@ struct SwiftUIMap: View {
                             .resizable()
                             .symbolEffect(.pulse, value: isSelected)
                             .scaledToFit()
-                            .frame(width: 18, height: 18)
+                            .frame(width: 32.0, height: 32.0)
                             .foregroundColor(.white)
                     }
                 }
