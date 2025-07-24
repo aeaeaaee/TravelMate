@@ -107,10 +107,17 @@ struct MapView: View {
                 }
                 if let from = routeViewModel.fromItem {
                     items.append(from)
+<<<<<<< HEAD
                 }
                 if let to = routeViewModel.toItem {
                     items.append(to)
                 }
+=======
+                }
+                if let to = routeViewModel.toItem {
+                    items.append(to)
+                }
+>>>>>>> V1
                 return items
             }()
             
@@ -215,6 +222,7 @@ struct MapView: View {
 
         self.selectedPlace = IdentifiablePlace(mapItem: mapItem)
         self.selectedMapFeature = feature
+<<<<<<< HEAD
         // Build a descriptive search text that includes both name and address when available.
         let namePart = mapItem.name ?? ""
         let addressPart = mapItem.placemark.title ?? ""
@@ -229,6 +237,9 @@ struct MapView: View {
             }
         }
         self.searchText = combined
+=======
+        self.searchText = mapItem.name ?? ""
+>>>>>>> V1
         self.isLocationSelected = true
         self.searchService.searchResults = []
         self.dismissKeyboard()
@@ -329,10 +340,16 @@ struct MapView: View {
                         // Info button to show location details
                         Button {
                             if isLocationSelected, selectedPlace != nil {
+<<<<<<< HEAD
                                  selectedMapFeature = nil // Clear any POI feature selection
                                  showLocationDetailSheet = true
                                  
                              } else {
+=======
+                                showLocationDetailSheet = true
+                                
+                            } else {
+>>>>>>> V1
                                 alertMessage = "Please select a location from the search results first, or search for a location."
                                 showAlertForNoSelection = true
                                 
@@ -352,6 +369,7 @@ struct MapView: View {
                     
                     // This is the "Directions/Go" button, separate from the TextField's internal buttons
                     Button(action: { searchAndSelect(for: searchText) }) {
+<<<<<<< HEAD
                         ZStack {
                             Circle()
                                 .fill(Color.accentColor)
@@ -360,6 +378,11 @@ struct MapView: View {
                                 .font(.system(size: 18))
                                 .foregroundColor(.white)
                         }
+=======
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundColor(.accentColor)
+>>>>>>> V1
                     }
                     .disabled(searchText.isEmpty || !isLocationSelected)
                 }
@@ -404,6 +427,7 @@ struct MapView: View {
                         .shadow(radius: 4)
                         
                         VStack(spacing: 0) {
+<<<<<<< HEAD
                             Button(action: { zoom(in: true) }) {
                                 Image(systemName: "plus")
                                 .font(.system(size: 20, weight: .medium))
@@ -416,6 +440,20 @@ struct MapView: View {
                                 .font(.system(size: 20, weight: .medium))
                                 .padding(10)
                                 .frame(width: 44, height: 44)
+=======
+                            Button(action: { zoom(in: true) }) { 
+                                Image(systemName: "plus")
+                                .font(.system(size: 20, weight: .medium))
+                                .padding(10)
+                                .frame(width: 44, height: 44) 
+                            }
+                            Divider().frame(width: 28)
+                            Button(action: { zoom(in: false) }) { 
+                                Image(systemName: "minus")
+                                .font(.system(size: 20, weight: .medium))
+                                .padding(10)
+                                .frame(width: 44, height: 44) 
+>>>>>>> V1
                             }
                         }
                         .background(.thinMaterial)

@@ -8,9 +8,15 @@ import MapKit
 struct POINameAndIcon {
     static func POIIconName(for category: MKPointOfInterestCategory?) -> String {
         switch category {
+<<<<<<< HEAD
         case .airport: return "airplane.arrival"
         case .amusementPark: return "flag.pattern.checkered.2.crossed"
         case .aquarium: return "fish.fill"
+=======
+        case .airport: return "airplane"
+        case .amusementPark: return "gamecontroller"
+        case .aquarium: return "globe"
+>>>>>>> V1
         case .atm: return "creditcard.fill"
         case .bakery: return "birthday.cake.fill"
         case .bank: return "building.columns.fill"
@@ -64,8 +70,13 @@ struct POINameAndIcon {
         case .store: return .yellow
         case .beach, .fitnessCenter: return .cyan
         case .foodMarket: return .yellow
+<<<<<<< HEAD
         case .atm, .bank, .carRental, .police : return .gray
         case .amusementPark, .aquarium, .museum, .musicVenue, .planetarium, .theater, .winery, .zoo: return .pink
+=======
+        case .atm, .bank, .carRental, .police : return .grey
+        case .amusementPark, .aquarium, .museum, .musicVenue, .planetarium, .theater,.winery, .zoo: return .pink
+>>>>>>> V1
         default: return .secondary
         }
     }

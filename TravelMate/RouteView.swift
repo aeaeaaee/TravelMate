@@ -5,11 +5,18 @@ import MapKit
 struct RouteView: View {
     
     // ViewModel to manage the state and logic for this view.
+<<<<<<< HEAD
     @ObservedObject var viewModel: RouteViewModel
     @EnvironmentObject private var locationManager: LocationManager
 
     // Closure to be called when the user taps 'Get Directions'.
     var onGetDirections: () -> Void
+=======
+    @StateObject private var viewModel = RouteViewModel()
+    
+    // This view now has its own location manager to be self-contained.
+    @StateObject private var locationManager = LocationManager()
+>>>>>>> V1
     
     // State for the map's camera position within this view.
     @State private var position: MapCameraPosition = .automatic
@@ -28,6 +35,10 @@ struct RouteView: View {
             // Route drawing is now handled by the main map view.
             // .ignoresSafeArea() // Removed to respect safe areas, especially for bottom nav bar
             
+<<<<<<< HEAD
+=======
+            
+>>>>>>> V1
             // The main UI is now in a single VStack for a simpler, more reliable layout.
             VStack(spacing: 0) {
                 // Title and input fields container.
@@ -116,6 +127,7 @@ struct RouteView: View {
                 
                 // "Get Directions" / "Show Selected Route" button
                 Button(action: {
+<<<<<<< HEAD
                     if viewModel.selectedRoute == nil {
                         // If no route is selected yet, calculate routes
                         viewModel.calculateRoutes { success in
@@ -129,6 +141,9 @@ struct RouteView: View {
                         // If a route IS selected, trigger navigation to the map
                         onGetDirections()
                     }
+=======
+                    viewModel.getDirections()
+>>>>>>> V1
                 }) {
                     Text(viewModel.selectedRoute == nil ? "Get Directions" : "Show Selected Route on Map")
                         .font(.headline)
@@ -143,17 +158,27 @@ struct RouteView: View {
             .background(Color(UIColor.systemGroupedBackground))
             .contentShape(Rectangle())
             .onTapGesture { focusedField = nil }
+<<<<<<< HEAD
+=======
+            
+>>>>>>> V1
         }
         .onAppear {
             viewModel.fromSearchService.currentLocation = locationManager.location
             viewModel.toSearchService.currentLocation = locationManager.location
             focusedField = .from
         }
-
-        .onChange(of: locationManager.location) {
-            viewModel.fromSearchService.currentLocation = locationManager.location
-            viewModel.toSearchService.currentLocation = locationManager.location
+        .onChange(of: viewModel.route) {
+            if let route = viewModel.route {
+                // Correctly access the boundingMapRect directly from the route object.
+                let rect = route.boundingMapRect.insetBy(dx: -500, dy: -500)
+                let region = MKCoordinateRegion(rect)
+                withAnimation {
+                    self.position = .region(region)
+                }
+            }
         }
+        .padding(.top)
     }
 
     // MARK: - Route Options View
@@ -278,9 +303,13 @@ struct RouteView: View {
 }
 
 #Preview {
+<<<<<<< HEAD
     // For the preview, we pass a dummy view model and an empty closure.
     RouteView(viewModel: RouteViewModel()) {
         print("Preview: Get Directions tapped.")
     }
     .environmentObject(LocationManager())
+=======
+    ContentView()
+>>>>>>> V1
 }

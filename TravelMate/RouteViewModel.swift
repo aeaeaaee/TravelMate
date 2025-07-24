@@ -62,8 +62,18 @@ class RouteViewModel: ObservableObject {
     @Published var selectedTransitRoute: APIServices.TransitRoute? = nil
     @Published var selectedRoute: MKRoute? = nil
     
+<<<<<<< HEAD
     @Published var selectedFromResult: MKLocalSearchCompletion? = nil
     @Published var selectedToResult: MKLocalSearchCompletion? = nil
+=======
+<<<<<<< HEAD
+    // Store the actual selected MKLocalSearchCompletion objects
+    @Published var selectedFromResult: MKLocalSearchCompletion? = nil
+    @Published var selectedToResult: MKLocalSearchCompletion? = nil
+=======
+    @Published var selectedFromResult: MKLocalSearchCompletion? = nil
+    @Published var selectedToResult: MKLocalSearchCompletion? = nil
+>>>>>>> V1
 
     // MARK: - Helper Functions
 
@@ -73,6 +83,10 @@ class RouteViewModel: ObservableObject {
         formatter.unitsStyle = .short // e.g., "1h 10m" or "25m"
         return formatter.string(from: time) ?? ""
     }
+<<<<<<< HEAD
+=======
+>>>>>>> V2
+>>>>>>> V1
     
     // Services for handling search completions for the "From" and "To" fields.
     @Published var fromSearchService = LocationSearchService()
@@ -86,10 +100,24 @@ class RouteViewModel: ObservableObject {
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
                 guard let self = self else { return }
+<<<<<<< HEAD
 
                 let currentSelectedFullText = (self.selectedFromResult?.title ?? "") +
                                               (self.selectedFromResult?.subtitle.isEmpty == false ? ", \(self.selectedFromResult?.subtitle ?? "")" : "")
 
+=======
+<<<<<<< HEAD
+                
+                let currentSelectedFullText = (self.selectedFromResult?.title ?? "") +
+                (self.selectedFromResult?.subtitle.isEmpty == false ? ", \(self.selectedFromResult?.subtitle ?? "")" : "")
+                
+=======
+
+                let currentSelectedFullText = (self.selectedFromResult?.title ?? "") +
+                                              (self.selectedFromResult?.subtitle.isEmpty == false ? ", \(self.selectedFromResult?.subtitle ?? "")" : "")
+
+>>>>>>> V2
+>>>>>>> V1
                 if newText == currentSelectedFullText && self.selectedFromResult != nil {
                     // Text matches the selected item, and an item is indeed selected.
                     // This means the text field was populated by a selection.
@@ -109,10 +137,24 @@ class RouteViewModel: ObservableObject {
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] newText in
                 guard let self = self else { return }
+<<<<<<< HEAD
 
                 let currentSelectedFullText = (self.selectedToResult?.title ?? "") +
                                               (self.selectedToResult?.subtitle.isEmpty == false ? ", \(self.selectedToResult?.subtitle ?? "")" : "")
 
+=======
+<<<<<<< HEAD
+                
+                let currentSelectedFullText = (self.selectedToResult?.title ?? "") +
+                (self.selectedToResult?.subtitle.isEmpty == false ? ", \(self.selectedToResult?.subtitle ?? "")" : "")
+                
+=======
+
+                let currentSelectedFullText = (self.selectedToResult?.title ?? "") +
+                                              (self.selectedToResult?.subtitle.isEmpty == false ? ", \(self.selectedToResult?.subtitle ?? "")" : "")
+
+>>>>>>> V2
+>>>>>>> V1
                 if newText == currentSelectedFullText && self.selectedToResult != nil {
                     // Text matches the selected item, and an item is indeed selected.
                     // Do NOT trigger a new search.
@@ -163,6 +205,11 @@ class RouteViewModel: ObservableObject {
             }
         }
     }
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> V1
 
     func calculateRoutes(completion: @escaping (Bool) -> Void) {
         self.selectedRoute = nil // Clear previously selected route
@@ -197,4 +244,8 @@ class RouteViewModel: ObservableObject {
             }
         }
     }
+<<<<<<< HEAD
+=======
+>>>>>>> V2
+>>>>>>> V1
 }

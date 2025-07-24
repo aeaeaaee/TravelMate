@@ -105,11 +105,23 @@ struct LocationView: View {
 
     var body: some View {
         VStack(alignment: .leading) {
+<<<<<<< HEAD
             // Display an image for the location,Google's image.
             if placePhotoURL != nil {
                 ZStack(alignment: .bottomTrailing) {
                     Group {
                         if let url = placePhotoURL {
+=======
+            // Display an image for the location, trying MapKit's image first, then Google's.
+            if mapFeature?.image != nil || placePhotoURL != nil {
+                ZStack(alignment: .bottomTrailing) {
+                    Group {
+                        if let image = mapFeature?.image {
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        } else if let url = placePhotoURL {
+>>>>>>> V1
                             AsyncImage(url: url) { phase in
                                 switch phase {
                         case .empty:
@@ -124,10 +136,16 @@ struct LocationView: View {
                             }
                         }
                     }
+<<<<<<< HEAD
                     .frame(maxWidth: 380, maxHeight: 200)
                     .clipped()
                     .cornerRadius(10)
                     .background(Color(.systemGray5))
+=======
+                    .frame(height: 200)
+                    .clipped()
+                    .cornerRadius(10)
+>>>>>>> V1
 
                     // Google Images overlay button
                     Button(action: {
@@ -148,7 +166,11 @@ struct LocationView: View {
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)
+<<<<<<< HEAD
                         .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 8))
+=======
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+>>>>>>> V1
                     }
                     .padding(8)
                 }
@@ -281,6 +303,10 @@ struct LocationView: View {
                 .tint(mapItem.url == nil ? .gray : .green)
                 .frame(maxWidth: .infinity) // Make button take available width
 
+<<<<<<< HEAD
+=======
+                // Google Images search button (moved to photo overlay)
+>>>>>>> V1
 
             }
             .padding(.bottom, 8) // Add some padding below the buttons
