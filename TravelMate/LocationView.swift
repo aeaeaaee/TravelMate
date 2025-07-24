@@ -105,7 +105,7 @@ struct LocationView: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            // Display an image for the location, trying MapKit's image first, then Google's.
+            // Display an image for the location,Google's image.
             if placePhotoURL != nil {
                 ZStack(alignment: .bottomTrailing) {
                     Group {
@@ -115,7 +115,7 @@ struct LocationView: View {
                         case .empty:
                                     Color(.systemGray5).overlay(ProgressView())
                         case .success(let image):
-                                    image.resizable().scaledToFit()
+                                    image.resizable().scaledToFill()
                         case .failure:
                                     Color(.systemGray5).overlay(Text("Image failed to load."))
                                 @unknown default:
@@ -124,7 +124,7 @@ struct LocationView: View {
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity, minHeight:200,maxHeight: 200)
+                    .frame(maxWidth: 380, maxHeight: 200)
                     .clipped()
                     .cornerRadius(10)
                     .background(Color(.systemGray5))
@@ -148,7 +148,7 @@ struct LocationView: View {
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 8))
                     }
                     .padding(8)
                 }
@@ -281,7 +281,6 @@ struct LocationView: View {
                 .tint(mapItem.url == nil ? .gray : .green)
                 .frame(maxWidth: .infinity) // Make button take available width
 
-                // Google Images search button (moved to photo overlay)
 
             }
             .padding(.bottom, 8) // Add some padding below the buttons

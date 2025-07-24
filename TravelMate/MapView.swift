@@ -477,12 +477,15 @@ struct MapView: View {
     private var bottomNavBar: some View {
         VStack(spacing: 0) {
             Divider()
-            HStack(alignment: .bottom) {
-                navBarButton(icon: "map.fill", text: "Map", tab: .map)
-                navBarButton(icon: "tram.fill", text: "Route", tab: .route, size: 22)
-                navBarButton(icon: "figure.walk.suitcase.rolling", text: "Journey", tab: .journey, size: 22)
-                navBarButton(icon: "gear", text: "Settings", tab: .settings)
-            }
+            HStack(alignment: .bottom, spacing: 0) {
+                 navBarButton(icon: "map.fill", text: "Map", tab: .map)
+                 Divider().frame(height: 44)
+                 navBarButton(icon: "tram.fill", text: "Route", tab: .route, size: 22)
+                 Divider().frame(height: 44)
+                 navBarButton(icon: "figure.walk.suitcase.rolling", text: "Journey", tab: .journey, size: 22)
+                 Divider().frame(height: 44)
+                 navBarButton(icon: "gear", text: "Settings", tab: .settings)
+             }
             .padding(.top, 8.0).padding(.bottom, 18.0).padding(.horizontal, 17)
             .frame(maxWidth: .infinity)
             .background(
