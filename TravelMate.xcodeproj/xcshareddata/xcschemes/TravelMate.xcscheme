@@ -90,6 +90,11 @@
             value = "pk.eyJ1IjoiYWVhZWFhIiwiYSI6ImNtYzlrbTA0dDAwdmQybHIxeDE4dzJ3b24ifQ.QH2rUVCd8KGHYE3-GiKItw"
             isEnabled = "NO">
          </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "FSQ_API_KEY"
+            value = "G4UXHAMKRBZZ0SGZUSEJT3QH5JFX4L1OYMRQHWTN4XXSN02F"
+            isEnabled = "NO">
+         </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction

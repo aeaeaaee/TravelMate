@@ -329,9 +329,10 @@ struct MapView: View {
                         // Info button to show location details
                         Button {
                             if isLocationSelected, selectedPlace != nil {
-                                showLocationDetailSheet = true
-                                
-                            } else {
+                                 selectedMapFeature = nil // Clear any POI feature selection
+                                 showLocationDetailSheet = true
+                                 
+                             } else {
                                 alertMessage = "Please select a location from the search results first, or search for a location."
                                 showAlertForNoSelection = true
                                 
@@ -351,9 +352,14 @@ struct MapView: View {
                     
                     // This is the "Directions/Go" button, separate from the TextField's internal buttons
                     Button(action: { searchAndSelect(for: searchText) }) {
-                        Image(systemName: "arrow.right.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(.accentColor)
+                        ZStack {
+                            Circle()
+                                .fill(Color.accentColor)
+                                .frame(width: 36, height: 36)
+                            Image(systemName: "point.bottomleft.forward.to.point.topright.filled.scurvepath")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                        }
                     }
                     .disabled(searchText.isEmpty || !isLocationSelected)
                 }
@@ -474,7 +480,7 @@ struct MapView: View {
             HStack(alignment: .bottom) {
                 navBarButton(icon: "map.fill", text: "Map", tab: .map)
                 navBarButton(icon: "tram.fill", text: "Route", tab: .route, size: 22)
-                navBarButton(icon: "figure.walk.motion", text: "Journey", tab: .journey, size:22)
+                navBarButton(icon: "figure.walk.suitcase.rolling", text: "Journey", tab: .journey, size: 22)
                 navBarButton(icon: "gear", text: "Settings", tab: .settings)
             }
             .padding(.top, 8.0).padding(.bottom, 18.0).padding(.horizontal, 17)

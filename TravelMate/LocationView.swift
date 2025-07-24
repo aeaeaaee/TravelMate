@@ -115,7 +115,7 @@ struct LocationView: View {
                         case .empty:
                                     Color(.systemGray5).overlay(ProgressView())
                         case .success(let image):
-                                    image.resizable().scaledToFill()
+                                    image.resizable().scaledToFit()
                         case .failure:
                                     Color(.systemGray5).overlay(Text("Image failed to load."))
                                 @unknown default:
@@ -124,9 +124,10 @@ struct LocationView: View {
                             }
                         }
                     }
-                    .frame(height: 200)
+                    .frame(maxWidth: .infinity, minHeight:200,maxHeight: 200)
                     .clipped()
                     .cornerRadius(10)
+                    .background(Color(.systemGray5))
 
                     // Google Images overlay button
                     Button(action: {

@@ -122,10 +122,10 @@ final class GooglePlacesAPIService {
 
     /// Returns the full URL for a photo associated with a place.
     /// The new API requires the photo's `name` as the reference.
-    func photoURL(for reference: String, maxWidth: Int = 400) -> URL? {
+    func photoURL(for reference: String, maxWidth: Int = 400, maxHeight : Int = 200) -> URL? {
         guard let key = apiKey, !reference.isEmpty else { return nil }
         // The reference is the full resource name, e.g., "places/ChIJ.../photos/Aap..."
-        let urlString = "\(baseURL)/\(reference)/media?maxWidthPx=\(maxWidth)&key=\(key)"
+        let urlString = "\(baseURL)/\(reference)/media?maxWidthPx=\(maxWidth)&maxHeightPx=\(maxHeight)&key=\(key)"
         return URL(string: urlString)
     }
 
