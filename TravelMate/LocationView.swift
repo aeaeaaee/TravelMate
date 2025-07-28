@@ -286,7 +286,7 @@ struct LocationView: View {
             .padding(.bottom, 8) // Add some padding below the buttons
 
             VStack(alignment: .leading, spacing: 8) {
-                if let address = placeDetails?.address ?? mapItem.placemark.title {
+                if let address = mapItem.placemark.title {
                     Text(address)
                         .font(.body)
                 }

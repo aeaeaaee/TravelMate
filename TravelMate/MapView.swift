@@ -28,6 +28,7 @@ struct MapView: View {
     @State private var selectedPlace: IdentifiablePlace?
 
     @State private var selectedMapFeature: MapFeature?
+    @State private var mapSelection: MapSelection<MKMapItem>? = nil
 
 
     @State private var isLocationSelected = false // Tracks if a location is selected in the main search
@@ -121,14 +122,27 @@ struct MapView: View {
                 SwiftUIMap(
                     mapItems: mapItems,
                     overlayPolyline: routeViewModel.selectedRoute?.polyline ?? routeViewModel.selectedTransitRoute?.polyline,
-                    highlightItem: (selectedMapFeature == nil ? selectedPlace?.mapItem : nil),
+                    highlightItem: (showLocationDetailSheet ? nil : selectedPlace?.mapItem),
+                    selection: $mapSelection,
+                    featureSelection: $selectedMapFeature,
                     position: $position,
                     onSelectionChange: { newSelection in
                         handleMapSelectionChange(newSelection)
                     },
+                    onFeatureTap: { feature in
+                        guard feature.kind == .pointOfInterest else { return }
+                        // Directly present sheet based on feature coordinate and title.
+                        let placemark = MKPlacemark(coordinate: feature.coordinate)
+                        let mapItem = MKMapItem(placemark: placemark)
+                        mapItem.name = feature.title
+                        DispatchQueue.main.async {
+                            self.searchText = feature.title ?? ""
+                            self.selectedMapFeature = feature
+                            self.handleMainSearchSelection(mapItem, from: feature, presentSheet: true)
+                        }
+                    },
                     onRegionChange: { region in
                         if !self.isSelectionInProgress {
-                            // Update the position to follow the user's gestures, ensuring smooth control.
                             self.position = .region(region)
                             self.mapStateHolder.currentRegion = region
                         }
@@ -193,19 +207,21 @@ struct MapView: View {
             selectedMapFeature = nil
             return
         }
-
-        // If the user selected a built-in POI, we get a MapFeature.
-        if let feature = selection.feature {
-            // Ensure we only respond to taps on actual points of interest.
-            guard feature.kind == .pointOfInterest else { return }
-
-            // Create a map item from the feature and finalize the selection.
+        if let item = selection.value {
+            DispatchQueue.main.async {
+                self.mapSelection = nil  // Remove native POI highlight so only our pin remains
+                self.handleMainSearchSelection(item, presentSheet: true)
+            }
+        } else if let feature = selection.feature, feature.kind == .pointOfInterest {
+            // Built-in POI tapped; create synthetic mapItem and open sheet
             let placemark = MKPlacemark(coordinate: feature.coordinate)
             let mapItem = MKMapItem(placemark: placemark)
             mapItem.name = feature.title
-            
-            // Finalize selection and present the sheet immediately for a direct map tap.
-            handleMainSearchSelection(mapItem, from: feature, presentSheet: true)
+            DispatchQueue.main.async {
+                self.selectedMapFeature = feature
+                self.searchText = feature.title ?? ""
+                self.handleMainSearchSelection(mapItem, from: feature, presentSheet: true)
+            }
         }
     }
 
@@ -292,6 +308,18 @@ struct MapView: View {
         }
     }
 
+    // Helper: perform a tight local POI search around a coordinate to retrieve a real MKMapItem matching the title.
+    private func searchByName(_ name: String?, near coordinate: CLLocationCoordinate2D, completion: @escaping (MKMapItem?) -> Void) {
+        var request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = name
+        request.region = MKCoordinateRegion(center: coordinate,
+                                            span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002))
+        request.resultTypes = .pointOfInterest
+        MKLocalSearch(request: request).start { response, _ in
+            completion(response?.mapItems.first)
+        }
+    }
+
     private var mainMapInterface: some View {
         ZStack {
             VStack(spacing: 0) {
@@ -312,7 +340,10 @@ struct MapView: View {
                                 // If text is fully cleared, also remove the map pin.
                                 if searchText.isEmpty {
                                     selectedPlace = nil
+                                    selectedMapFeature = nil
+                                    mapSelection = nil
                                     isLocationSelected = false // Ensure state is reset when cleared
+                                    showLocationDetailSheet = false // Clear the state
                                 }
                             }
 
@@ -328,16 +359,29 @@ struct MapView: View {
                         }
                         // Info button to show location details
                         Button {
-                            if isLocationSelected, selectedPlace != nil {
-                                 selectedMapFeature = nil // Clear any POI feature selection
-                                 showLocationDetailSheet = true
-                                 
-                             } else {
+                            // Clear highlighted POI halo only if a feature is currently active
+                            if selectedMapFeature != nil {
+                                selectedMapFeature = nil
+                                mapSelection = nil
+                            }
+
+                            if isLocationSelected, let place = selectedPlace {
+                                // Use the already-chosen MKMapItem
+                                handleMainSearchSelection(place.mapItem, presentSheet: true)
+                                self.showLocationDetailSheet = true
+                            } else if !searchText.isEmpty {
+                                // Convert search text to a full MKMapItem first. Ensure any existing sheet is closed so it will reopen with new data.
+                                if showLocationDetailSheet {
+                                    showLocationDetailSheet = false
+                                }
+                                searchAndSelect(for: searchText)
+                            } else {
                                 alertMessage = "Please select a location from the search results first, or search for a location."
                                 showAlertForNoSelection = true
-                                
                             }
-                            focusedField = nil // Dismiss keyboard after tapping info button
+
+                            // Dismiss keyboard
+                            focusedField = nil
                         } label: {
                             Image(systemName: "magnifyingglass")
                                 .foregroundColor(.gray) // Consistent icon color
@@ -516,18 +560,46 @@ struct MapView: View {
  
 
     private func searchAndSelect(for query: String) {
+        // 1. Try to find an existing completion whose title exactly matches the query.
+        if let exact = searchService.searchResults.first(where: { result in
+            let title = (result.resolvedTitle ?? result.completion.title).lowercased()
+            return title == query.lowercased()
+        }) {
+            let req = MKLocalSearch.Request(completion: exact.completion)
+            if let region = mapStateHolder.currentRegion {
+                req.region = region
+            }
+            MKLocalSearch(request: req).start { response, _ in
+                if let mapItem = response?.mapItems.first {
+                    DispatchQueue.main.async {
+                        self.handleMainSearchSelection(mapItem, presentSheet: true)
+                    }
+                }
+            }
+            return
+        }
+        // 2. Fallback: plain natural language search.
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
         if let region = mapStateHolder.currentRegion {
             request.region = region
         }
-
-        let search = MKLocalSearch(request: request)
-        search.start { response, error in
-            if let mapItem = response?.mapItems.first {
-                DispatchQueue.main.async {
-                    self.handleMainSearchSelection(mapItem, presentSheet: true)
-                }
+        request.resultTypes = .pointOfInterest
+        MKLocalSearch(request: request).start { response, _ in
+            guard let items = response?.mapItems, !items.isEmpty else { return }
+            // If we already have a pin on the map, pick the result closest to it.
+            let chosen: MKMapItem
+            if let anchorLoc = self.selectedPlace?.mapItem.placemark.location {
+                chosen = items.min(by: { lhs, rhs in
+                    let lhsDist = lhs.placemark.location?.distance(from: anchorLoc) ?? Double.greatestFiniteMagnitude
+                    let rhsDist = rhs.placemark.location?.distance(from: anchorLoc) ?? Double.greatestFiniteMagnitude
+                    return lhsDist < rhsDist
+                }) ?? items[0]
+            } else {
+                chosen = items[0]
+            }
+            DispatchQueue.main.async {
+                self.handleMainSearchSelection(chosen, presentSheet: true)
             }
         }
     }
@@ -547,6 +619,8 @@ struct MapView: View {
                             if let mapItem = response?.mapItems.first {
                                 DispatchQueue.main.async {
                                     self.handleMainSearchSelection(mapItem, presentSheet: false)
+                                    self.isLocationSelected = true
+                                    self.selectedMapFeature = nil
                                 }
                             }
                         }
@@ -579,14 +653,15 @@ struct MapView: View {
         }
     }
 
-private func zoom(in zoomIn: Bool) {
-    guard let currentRegion = mapStateHolder.currentRegion else { return }
-    let factor = zoomIn ? 0.5 : 2
-    let newSpan = MKCoordinateSpan(latitudeDelta: currentRegion.span.latitudeDelta * factor, longitudeDelta: currentRegion.span.longitudeDelta * factor)
-    let newRegion = MKCoordinateRegion(center: currentRegion.center, span: newSpan)
-    applyRegion(newRegion)
+    private func zoom(in zoomIn: Bool) {
+        guard let currentRegion = mapStateHolder.currentRegion else { return }
+        let factor = zoomIn ? 0.5 : 2
+        let newSpan = MKCoordinateSpan(latitudeDelta: currentRegion.span.latitudeDelta * factor, longitudeDelta: currentRegion.span.longitudeDelta * factor)
+        let newRegion = MKCoordinateRegion(center: currentRegion.center, span: newSpan)
+        applyRegion(newRegion)
+    }
 }
-}
+
 #Preview {
     MapView()
 }

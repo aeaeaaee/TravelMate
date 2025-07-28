@@ -20,10 +20,16 @@ struct SwiftUIMap: View {
     let mapItems: [MKMapItem]
     let overlayPolyline: MKPolyline?
     let highlightItem: MKMapItem?
+    // External selection binding (optional). If nil, an internal state is used.
+    var selection: Binding<MapKit.MapSelection<MKMapItem>?>? = nil
+    // Optional binding for built-in POI feature selection. If nil, we manage it internally.
+    var featureSelection: Binding<MapFeature?>? = nil
 
     @Binding var position: MapCameraPosition
 
     var onSelectionChange: ((MapKit.MapSelection<MKMapItem>?) -> Void)? = nil
+    // Callback for taps on native POI features
+    var onFeatureTap: ((MapFeature) -> Void)? = nil
 
     // Closure equivalent of UIKitMapView’s delegate callback
             let onRegionChange: (MKCoordinateRegion) -> Void
@@ -47,11 +53,13 @@ struct SwiftUIMap: View {
     // MARK: ‑ Body
     var body: some View {
                 MapViewContent(position: $position,
-
                          annotationItems: annotationItems,
                          overlayPolyline: overlayPolyline,
                          highlightItem: highlightItem,
-                         onSelectionChange: onSelectionChange)
+                         externalSelection: selection,
+                         onSelectionChange: onSelectionChange,
+                         featureSelection: featureSelection,
+                         onFeatureTap: onFeatureTap)
             
             .onMapCameraChange(frequency: .continuous) { context in
                 onRegionChange(context.region)
@@ -67,9 +75,14 @@ struct SwiftUIMap: View {
         let annotationItems: [AnnotationItem]
         let overlayPolyline: MKPolyline?
         let highlightItem: MKMapItem?
+        // External selection binding (optional). If nil, use internal state.
+        let externalSelection: Binding<MapKit.MapSelection<MKMapItem>?>?
         let onSelectionChange: ((MapKit.MapSelection<MKMapItem>?) -> Void)?
+        let featureSelection: Binding<MapFeature?>?
+        let onFeatureTap: ((MapFeature) -> Void)?
 
         @State private var internalSelection: MapKit.MapSelection<MKMapItem>?
+        @State private var internalFeatureSelection: MapFeature?
 
         // Extracted annotation and overlay content for compiler clarity
         @MapContentBuilder
@@ -88,20 +101,32 @@ struct SwiftUIMap: View {
                 let bg = POINameAndIcon.POIIconBackgroundColor(for: data.item.pointOfInterestCategory)
                 Annotation(data.item.name ?? "", coordinate: data.coord) {
                     ZStack {
+                        // Main bubble positioned slightly above the exact coordinate
                         Circle()
                             .fill(bg)
-                            .frame(width: 50.0, height: 50.0)
-                            .shadow(color: .white.opacity(0.8), radius: 2)
+                            .frame(width: 46, height: 46)
+                            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
                             .overlay(
                                 Circle()
                                     .stroke(Color.black.opacity(0.6), lineWidth: 1)
                             )
-                        Image(systemName: iconName)
-                            .resizable()
-                            .symbolEffect(.pulse, value: isSelected)
-                            .scaledToFit()
-                            .frame(width: 32.0, height: 32.0)
-                            .foregroundColor(.white)
+                            .overlay(
+                                Image(systemName: iconName)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 28, height: 28)
+                                    .foregroundColor(.white)
+                            )
+                            .offset(y: -30)
+
+                        // Tiny anchor dot exactly at the coordinate
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 8, height: 8)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.black.opacity(0.8), lineWidth: 1)
+                            )
                     }
                 }
                 .tag(data.item)
@@ -141,15 +166,36 @@ struct SwiftUIMap: View {
 
         var body: some View {
             let content = defaultContent
-            let baseMap = Map(position: $position, selection: $internalSelection) {
+            let selectionBinding = externalSelection ?? $internalSelection
+            let featureBinding = featureSelection ?? $internalFeatureSelection
+            let baseMap = Map(position: $position, selection: selectionBinding) {
                 content
             }
             
-            return baseMap
-                .mapStyle(.standard)
-                .onChange(of: internalSelection) { _, newSelection in
-                    onSelectionChange?(newSelection)
-                }
+            if let extSel = externalSelection {
+                baseMap
+                    .mapStyle(.standard)
+                    .onChange(of: extSel.wrappedValue) { _, newSel in
+                        onSelectionChange?(newSel)
+                    }
+                    // Propagate feature taps (always listen)
+                    .onChange(of: featureBinding.wrappedValue) { _, newFeat in
+                        if let feat = newFeat {
+                            onFeatureTap?(feat)
+                        }
+                    }
+            } else {
+                baseMap
+                    .mapStyle(.standard)
+                    .onChange(of: internalSelection) { _, newSel in
+                        onSelectionChange?(newSel)
+                    }
+                    .onChange(of: featureBinding.wrappedValue) { _, newFeat in
+                        if let feat = newFeat {
+                            onFeatureTap?(feat)
+                        }
+                    }
+            }
         }
 
         private func categoryColor(for category: MKPointOfInterestCategory?) -> Color {
@@ -159,8 +205,8 @@ struct SwiftUIMap: View {
         private func iconName(for category: MKPointOfInterestCategory?) -> String {
             POINameAndIcon.POIIconName(for: category)
         }
-
-        }
+        
+    }
 
     private func pinTint(for item: MKMapItem) -> Color {
         guard let first = mapItems.first, let last = mapItems.last else { return .red }
