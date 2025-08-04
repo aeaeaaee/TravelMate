@@ -22,12 +22,12 @@ struct LocationView: View {
     @State private var placeDetails: PlaceDetails? = nil
     // Indicates we waited long enough and still have no place details.
     @State private var photoFetchTimedOut: Bool = false
-
+    
     /// Determines the most relevant Point of Interest category, prioritizing the tapped map feature.
     private var pointOfInterestCategory: MKPointOfInterestCategory? {
         mapFeature?.pointOfInterestCategory ?? mapItem.pointOfInterestCategory
     }
-
+    
     // Helper to get a user-friendly category string via centralized utility
     private var categoryString: String {
         let base = POINameAndIcon.POIName(for: pointOfInterestCategory)
@@ -36,7 +36,7 @@ struct LocationView: View {
         }
         return base
     }
-
+    
     private var countryFlag: String? {
         guard let countryCode = mapItem.placemark.isoCountryCode else { return nil }
         // Convert ISO country code to emoji flag
@@ -47,13 +47,13 @@ struct LocationView: View {
         }
         return s.isEmpty ? nil : s
     }
-
+    
     /// Provides a localized country name using the placemark's ISO country code for reliable context.
     private var locationContext: String {
         guard let countryCode = mapItem.placemark.isoCountryCode else { return "" }
         return Locale.current.localizedString(forRegionCode: countryCode) ?? ""
     }
-
+    
     /// Combines category and location context for a clean, readable subtitle.
     private var subtitleString: String {
         let context = locationContext
@@ -66,19 +66,19 @@ struct LocationView: View {
         }
         return subtitleItems.joined(separator: " • ")
     }
-
+    
     // SF Symbol name for the category glyph
     private var categoryIconName: String {
         POINameAndIcon.POIIconName(for: pointOfInterestCategory)
     }
-
+    
     // Background circle color for the category glyph
     private var categoryIconBackgroundColor: Color {
         POINameAndIcon.POIIconBackgroundColor(for: pointOfInterestCategory)
     }
-
+    
     // Function to fetch the Look Around scene
-
+    
     private func fetchLookAroundScene(for coordinate: CLLocationCoordinate2D) async {
         let request = MKLookAroundSceneRequest(coordinate: coordinate)
         do {
@@ -102,34 +102,40 @@ struct LocationView: View {
             print("Failed to fetch Look Around scene: \(error.localizedDescription)")
         }
     }
-
+    
     var body: some View {
         VStack(alignment: .leading) {
-            // Display an image for the location,Google's image.
-            if placePhotoURL != nil {
-                ZStack(alignment: .bottomTrailing) {
-                    Group {
-                        if let url = placePhotoURL {
-                            AsyncImage(url: url) { phase in
-                                switch phase {
-                        case .empty:
-                                    Color(.systemGray5).overlay(ProgressView())
-                        case .success(let image):
-                                    image.resizable().scaledToFill()
-                        case .failure:
-                                    Color(.systemGray5).overlay(Text("Image failed to load."))
-                                @unknown default:
-                                    Color(.systemGray5)
+            // Display Apple Look Around preview for the location
+            ZStack(alignment: .bottomTrailing) {
+                Group {
+                    if let scene = lookAroundScene, isLookAroundAvailable {
+                        LookAroundPreview(initialScene: scene)
+                            .cornerRadius(10)
+                    } else {
+                        Color(.systemGray5)
+                            .overlay(
+                                Group {
+                                    if isLookAroundAvailable {
+                                        ProgressView()
+                                    } else {
+                                        VStack (alignment: .center, spacing: 10) {
+                                            Image(systemName: "eye.slash")
+                                                .font(.system(size: 40))
+                                                .foregroundColor(.secondary)
+                                            Text("Apple Look Around Feature not available for this location.")
+                                                .font(.title)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
                                 }
-                            }
-                        }
+                            )
                     }
-                    .frame(maxWidth: 380, maxHeight: 200)
-                    .clipped()
-                    .cornerRadius(10)
-                    .background(Color(.systemGray5))
-
-                    // Google Images overlay button
+                }
+                .frame(maxWidth: 400, maxHeight: 200)
+                .clipped()
+                .cornerRadius(10)
+                .background(Color(.systemGray5))
+                    
                     Button(action: {
                         let name = mapFeature?.title ?? mapItem.name ?? ""
                         let context = locationContext
@@ -152,27 +158,8 @@ struct LocationView: View {
                     }
                     .padding(8)
                 }
-                .frame(height: 200)
                 .padding(.bottom, 10)
-            } else {
-                // Placeholder for when no image is available or is still loading.
-                Color(.systemGray5)
-                    .frame(height: 200)
-                    .padding(.bottom, 10)
-                    .overlay(
-                        // Show a progress view while waiting for the fetch, otherwise show failure icon.
-                        Group {
-                            if placeDetails == nil && !photoFetchTimedOut {
-                                ProgressView()
-                            } else {
-                                Image(systemName: "eye.slash")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    )
-            }
-
+            
             // Header with Title, Category, and Add Button
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .top) {
@@ -182,18 +169,46 @@ struct LocationView: View {
                             Text(mapFeature?.title ?? mapItem.name ?? "Unknown Location")
                                 .font(.title2)
                                 .fontWeight(.bold)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
                             if let flag = countryFlag {
                                 Text(flag)
                                     .font(.title2)
                             }
+                            Spacer()
+                            // Open in Apple Maps button
+                            Button(action: {
+                                mapItem.openInMaps(launchOptions: nil)
+                            }) {
+                                HStack (spacing: 4){
+                                    Image(systemName: "apple.logo")
+                                        .font(.body)
+                                        .foregroundColor(.blue)
+                                    Text("Maps")
+                                        .font(.body)
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            
+                            // Favorite toggle button
+                            Button(action: {
+                                isFavorite.toggle()
+                            }) {
+                                Image(systemName: isFavorite ? "heart.fill" : "heart")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(isFavorite ? .red : .secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
+                        
                         HStack {
                             if !subtitleString.isEmpty {
                                 Text(subtitleString)
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
-
+                            
                             // Apple-style Category Icon, using the specific feature's icon if available.
                             ZStack {
                                 Circle()
@@ -216,21 +231,9 @@ struct LocationView: View {
                             )
                         }
                     }
-
-                    Spacer()
-
-                    // Favorite toggle button
-                    Button(action: {
-                        isFavorite.toggle()
-                    }) {
-                        Image(systemName: isFavorite ? "heart.fill" : "heart")
-                            .font(.system(size: 22))
-                            .foregroundColor(isFavorite ? .red : .secondary)
-                    }
-                    .buttonStyle(.plain)
                 }
             }
-
+            
             // Stray '}' removed from here
             Divider()
                 .padding(.bottom, 4.0)
@@ -258,9 +261,9 @@ struct LocationView: View {
                 .controlSize(.large) // Make button taller
                 .tint(.blue)
                 .frame(maxWidth: .infinity) // Make button take available width
-
+                
                 // Spacer() // Removed Spacer
-
+                
                 Button {
                     if let url = mapItem.url {
                         openURL(url)
@@ -280,11 +283,11 @@ struct LocationView: View {
                 .disabled(mapItem.url == nil)
                 .tint(mapItem.url == nil ? .gray : .green)
                 .frame(maxWidth: .infinity) // Make button take available width
-
-
+                
+                
             }
             .padding(.bottom, 8) // Add some padding below the buttons
-
+            
             VStack(alignment: .leading, spacing: 8) {
                 if let address = mapItem.placemark.title {
                     Text(address)
@@ -297,15 +300,17 @@ struct LocationView: View {
                         .foregroundColor(.blue)
                 }
             }
-            
             Spacer() // Pushes content to the top
         }
-        .padding()
+        .padding(.horizontal, 16)
         .task(id: mapItem) {
-
+            
             // Debug print for the point of interest category
             print("LocationView: Displaying details for \(mapFeature?.title ?? mapItem.name ?? "Unknown"). Category: \(pointOfInterestCategory?.rawValue ?? "None")")
-
+            
+            // Fetch Look Around scene for current coordinate
+            await fetchLookAroundScene(for: mapItem.placemark.coordinate)
+            
             // Fetch Google Places photo when selected location changes
             placePhotoURL = nil
             placeDetails = nil
@@ -333,7 +338,7 @@ struct LocationView: View {
             }
         }
     }
-} // Correctly closing LocationView struct
+}
 
 #Preview {
     // Helper struct to manage @State for the preview
@@ -349,7 +354,7 @@ struct LocationView: View {
 
             return LocationView(selectedTab: $previewSelectedTab, mapItem: mapItem, mapFeature: nil)
                 .environmentObject(RouteViewModel())
-                .frame(height: 300)
+                .frame(height: .infinity)
                 .background(Color(UIColor.systemBackground))
                 .previewLayout(.sizeThatFits)
         }

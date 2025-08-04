@@ -117,7 +117,7 @@ struct SwiftUIMap: View {
                                     .frame(width: 28, height: 28)
                                     .foregroundColor(.white)
                             )
-                            .offset(y: -30)
+                            .offset(y: -36)
 
                         // Tiny anchor dot exactly at the coordinate
                         Circle()
