@@ -12,6 +12,11 @@ struct IdentifiablePlace: Identifiable {
     }
 }
 
+// Payload to drive the top popover presentation.
+struct TopPopoverPayload: Identifiable {
+    let id = UUID()
+}
+
 // A simple class to hold map state that needs to be accessed directly, bypassing SwiftUI's state update cycle.
 class MapStateHolder: ObservableObject {
     var currentRegion: MKCoordinateRegion?
@@ -29,8 +34,12 @@ struct MapView: View {
 
     @State private var selectedMapFeature: MapFeature?
     @State private var mapSelection: MapSelection<MKMapItem>? = nil
-
-
+    
+    // Popover state for the top-anchored popover presented from the Go button.
+    @State private var topPopoverItem: TopPopoverPayload?
+    // Track detent selection when the popover adapts to a sheet in compact environments.
+    @State private var topPopoverDetent: PresentationDetent = .fraction(0.25)
+    
     @State private var isLocationSelected = false // Tracks if a location is selected in the main search
     @State private var isInitialLocationSet = false // Tracks if the map has centered on the initial location.
     @State private var isMapReady = false // Tracks if the map has reported its initial state.
@@ -271,6 +280,8 @@ struct MapView: View {
 
 
     private func handleTabChange(_ newTab: MapView.Tab) {
+        // Failsafe: always dismiss the location detail sheet when changing tabs.
+        showLocationDetailSheet = false
         if newTab == .journey || newTab == .settings {
             routeViewModel.routes = []
             routeViewModel.transitRoutes = []
@@ -395,7 +406,7 @@ struct MapView: View {
                     .shadow(radius: 5, y: 3)
                     
                     // This is the "Directions/Go" button, separate from the TextField's internal buttons
-                    Button(action: { searchAndSelect(for: searchText) }) {
+                    Button(action: { topPopoverItem = TopPopoverPayload() }) {
                         ZStack {
                             Circle()
                                 .fill(Color.accentColor)
@@ -406,6 +417,32 @@ struct MapView: View {
                         }
                     }
                     .disabled(searchText.isEmpty || !isLocationSelected)
+                    // Top-anchored popover; adapts to a sheet on iPhone
+                    .popover(item: $topPopoverItem, attachmentAnchor: .rect(.bounds), arrowEdge: .top) { _ in
+                        // Placeholder content; to be filled later
+                        VStack(spacing: 8) {
+                            Text("Coming soon")
+                                .font(.headline)
+                            Text("We'll add content here next.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(12)
+                        // Make the popover height follow the content
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                    // Prefer a content-fitted popover where supported
+                    .presentationSizing(.fitted)
+                    .presentationCompactAdaptation(.popover)
+                    // When adapted to a sheet (iPhone), allow a very small detent
+                    .presentationDetents([.height(120), .fraction(0.25), .medium, .large], selection: $topPopoverDetent)
+                    .presentationDragIndicator(.visible)
+                    // If the sheet (compact adaptation) is dragged up to medium/large, auto-dismiss.
+                    .onChange(of: topPopoverDetent) { _, newDetent in
+                        if newDetent == .medium || newDetent == .large {
+                            topPopoverItem = nil
+                        }
+                    }
                 }
                 .padding(.horizontal).padding(.top)
 
@@ -544,6 +581,10 @@ struct MapView: View {
     // Helper function to create a standard navigation bar button.
     private func navBarButton(icon: String, text: String, tab: MapView.Tab, size: CGFloat = 24) -> some View {
         Button(action: {
+            // Dismiss the location detail sheet when switching tabs
+            if selectedTab != tab {
+                showLocationDetailSheet = false
+            }
             selectedTab = tab
         }) {
             VStack(spacing: 4) {
@@ -665,3 +706,61 @@ struct MapView: View {
 #Preview {
     MapView()
 }
+
+#if DEBUG
+struct GoPopoverSizing_Previews: PreviewProvider {
+    struct Demo: View {
+        @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 22.326, longitude: 114.177),
+            span: .init(latitudeDelta: 0.03, longitudeDelta: 0.03)))
+        @State private var topPopoverItem: TopPopoverPayload? = TopPopoverPayload()
+        @State private var topPopoverDetent: PresentationDetent = .height(120)
+
+        var body: some View {
+            ZStack(alignment: .topTrailing) {
+                // Map background matching the app
+                SwiftUIMap(
+                    mapItems: [],
+                    overlayPolyline: nil,
+                    highlightItem: nil,
+                    position: $position,
+                    onRegionChange: { _ in })
+                .ignoresSafeArea()
+
+                // Minimal Go button to present the popover
+                Button(action: { topPopoverItem = TopPopoverPayload() }) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 36, height: 36)
+                        Image(systemName: "point.bottomleft.forward.to.point.topright.filled.scurvepath")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding(16)
+                .popover(item: $topPopoverItem, attachmentAnchor: .rect(.bounds), arrowEdge: .top) { _ in
+                    VStack(spacing: 8) {
+                        Text("Coming soon")
+                            .font(.headline)
+                        Text("We'll add content here next.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(12)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .presentationSizing(.fitted)
+                .presentationCompactAdaptation(.popover)
+                .presentationDetents([.height(120), .fraction(0.25), .medium, .large], selection: $topPopoverDetent)
+                .presentationDragIndicator(.visible)
+            }
+            .frame(height: 420)
+        }
+    }
+
+    static var previews: some View {
+        Demo()
+    }
+}
+#endif

@@ -99,7 +99,8 @@ struct SwiftUIMap: View {
             var body: some MapContent {
                 let iconName = POINameAndIcon.POIIconName(for: data.item.pointOfInterestCategory)
                 let bg = POINameAndIcon.POIIconBackgroundColor(for: data.item.pointOfInterestCategory)
-                Annotation(data.item.name ?? "", coordinate: data.coord) {
+                // Use an empty title and render a custom label positioned just below the circle.
+                Annotation("", coordinate: data.coord) {
                     ZStack {
                         // Main bubble positioned slightly above the exact coordinate
                         Circle()
@@ -118,6 +119,21 @@ struct SwiftUIMap: View {
                                     .foregroundColor(.white)
                             )
                             .offset(y: -36)
+
+                        // Custom label just below the circle (above the anchor dot)
+                        ZStack {
+                            // Tier 2 (outline): slightly larger black text beneath
+                            Text(data.item.name ?? "")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.white)
+                            // Tier 1 (fill): white text on top
+                            Text(data.item.name ?? "")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.black)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .offset(y: 15)
 
                         // Tiny anchor dot exactly at the coordinate
                         Circle()
@@ -225,23 +241,101 @@ struct SwiftUIMap_Previews: PreviewProvider {
 
         // Sample items for preview
         private var sampleItems: [MKMapItem] {
-            let start = MKMapItem(placemark: .init(coordinate: .init(latitude: 22.317, longitude: 114.181)))
+            let start = MKMapItem(placemark: .init(coordinate: startCoord))
             start.name = "Olympic"
-            let end = MKMapItem(placemark: .init(coordinate: .init(latitude: 22.336, longitude: 114.173)))
+            let end = MKMapItem(placemark: .init(coordinate: endCoord))
             end.name = "Kowloon"
             return [start, end]
+        }
+
+        // Coordinates used for preview
+        private let startCoord = CLLocationCoordinate2D(latitude: 22.317, longitude: 114.181)
+        private let endCoord = CLLocationCoordinate2D(latitude: 22.336, longitude: 114.173)
+
+        // Sample polyline to visualize a route between the two points
+        private var samplePolyline: MKPolyline? {
+            var coords = [startCoord, endCoord]
+            return MKPolyline(coordinates: &coords, count: coords.count)
         }
 
         var body: some View {
             SwiftUIMap(
                 mapItems: sampleItems,
-                overlayPolyline: nil,
+                overlayPolyline: samplePolyline,
                 highlightItem: nil,
                 position: $position,
                 onRegionChange: { _ in })
+            .frame(height: 360)
+            .onAppear {
+                let region = MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(latitude: 22.326, longitude: 114.177),
+                    span: MKCoordinateSpan(latitudeDelta: 0.03, longitudeDelta: 0.03)
+                )
+                position = .region(region)
+            }
         }
     }
 
     static var previews: some View { Demo() }
+}
+// Standalone preview of the pin marker UI used by SwiftUIMap.PinMarker
+struct PinMarkerPreview: View {
+    let name: String
+    let category: MKPointOfInterestCategory?
+
+    var body: some View {
+        let iconName = POINameAndIcon.POIIconName(for: category)
+        let bg = POINameAndIcon.POIIconBackgroundColor(for: category)
+        ZStack {
+            // Main bubble positioned slightly above the exact coordinate
+            Circle()
+                .fill(bg)
+                .frame(width: 46, height: 46)
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                .overlay(
+                    Circle()
+                        .stroke(Color.black.opacity(0.6), lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: iconName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .foregroundColor(.white)
+                )
+                .offset(y: -36)
+
+            // Custom label just below the circle (mirrors current in-app styling)
+            Text(name)
+                .font(.caption2)
+                .fontWeight(.bold)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .shadow(color: .white.opacity(1), radius: 3)
+                .offset(y: 15)
+
+            // Tiny anchor dot exactly at the coordinate
+            Circle()
+                .fill(Color.white)
+                .frame(width: 8, height: 8)
+                .overlay(
+                    Circle()
+                        .stroke(Color.black.opacity(0.8), lineWidth: 1)
+                )
+        }
+        .frame(width: 120, height: 120)
+        .padding()
+    }
+}
+
+struct PinMarker_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            PinMarkerPreview(name: "Cafe", category: .cafe)
+        }
+        .previewLayout(.sizeThatFits)
+        .padding()
+        .background(Color(.systemBackground))
+    }
 }
 #endif

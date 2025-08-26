@@ -123,7 +123,7 @@ struct LocationView: View {
                                                 .font(.system(size: 40))
                                                 .foregroundColor(.secondary)
                                             Text("Apple Look Around Feature not available for this location.")
-                                                .font(.title)
+                                                .font(.body)
                                                 .foregroundColor(.secondary)
                                         }
                                     }
