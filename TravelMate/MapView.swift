@@ -443,17 +443,6 @@ struct MapView: View {
                 HStack {
                     Spacer()
                     VStack(spacing: 8) {
-                        // Transit map toggle button (above geolocation)
-                        Button(action: { showTransitBaseMap.toggle() }) {
-                            Image(systemName: showTransitBaseMap ? "mappin.and.ellipse" : "tram.fill.tunnel")
-                                .font(.system(size: 20, weight: .medium))
-                                .padding(10)
-                                .frame(width: 44, height: 44)
-                        }
-                        .background(.thinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .shadow(radius: 4)
-
                         Button(action: {
                             if let userLocation = locationManager.location {
                                 let span = mapStateHolder.currentRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
