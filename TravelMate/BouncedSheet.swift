@@ -192,6 +192,148 @@ private struct BottomSheetModifier<SheetContent: View>: ViewModifier {
     }
 }
 
+// MARK: - Top-anchored Sheet (moved from TopSheet)
+
+/// Detents for the top-anchored sheet.
+enum TopSheetDetent: CaseIterable, Comparable {
+    case half, full
+
+    static func < (lhs: TopSheetDetent, rhs: TopSheetDetent) -> Bool {
+        let order: [TopSheetDetent: Int] = [.half: 0, .full: 1]
+        return order[lhs]! < order[rhs]!
+    }
+}
+
+extension View {
+    /// Presents a draggable, top-anchored sheet with detents and bounce.
+    /// - Parameters:
+    ///   - isPresented: Controls visibility.
+    ///   - currentDetent: Current snap point (half/full).
+    ///   - onDismiss: Called after the sheet is dismissed.
+    ///   - content: The sheet's content.
+    func topSheet<Content: View>(
+        isPresented: Binding<Bool>,
+        currentDetent: Binding<TopSheetDetent>,
+        onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        self.modifier(TopSheetModifier(isPresented: isPresented, currentDetent: currentDetent, onDismiss: onDismiss, sheetContent: content))
+    }
+}
+
+private struct TopSheetModifier<SheetContent: View>: ViewModifier {
+    @Binding var isPresented: Bool
+    @Binding var currentDetent: TopSheetDetent
+    let onDismiss: (() -> Void)?
+    let sheetContent: () -> SheetContent
+
+    @GestureState private var dragTranslation: CGFloat = 0
+
+    private let dismissThresholdUp: CGFloat = 80
+    private let snapDragThreshold: CGFloat = 50
+
+    func body(content: Content) -> some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                // Main content
+                content
+
+                if isPresented {
+                    // Dimming overlay (covers entire app window; system status bar stays above)
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                        .onTapGesture { dismiss() }
+                        .transition(.opacity)
+
+                    // Sheet View
+                    sheetView(in: geometry)
+                        .transition(.move(edge: .top))
+                }
+            }
+            .animation(.interactiveSpring(response: 0.4, dampingFraction: 0.85), value: isPresented)
+        }
+    }
+
+    private func sheetView(in geometry: GeometryProxy) -> some View {
+        // Base detent heights on the full device height (including top safe area)
+        let fullContainer = CGSize(width: geometry.size.width, height: geometry.size.height + geometry.safeAreaInsets.top)
+        let height = sheetHeight(for: currentDetent, container: fullContainer)
+
+        return VStack(spacing: 0) {
+            // Content begins just below the dynamic island / status bar
+            sheetContent()
+                .padding(.top, geometry.safeAreaInsets.top)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .clipped()
+
+            // Drag handle at bottom
+            Capsule()
+                .fill(Color.secondary.opacity(0.5))
+                .frame(width: 40, height: 5)
+                .padding(.vertical, 8)
+        }
+        .frame(width: geometry.size.width, height: height, alignment: .top)
+        .background(Color(UIColor.systemBackground))
+        .clipShape(UnevenRoundedRectangle(cornerRadii: .init(topLeading: 0, bottomLeading: 20, bottomTrailing: 20, topTrailing: 0)))
+        .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
+        // Start at the very top edge (under status bar); system bar stays above the app surface
+        .ignoresSafeArea(edges: .top)
+        .offset(y: dragTranslation)
+        .gesture(dragGesture(in: geometry))
+        .animation(.interactiveSpring(response: 0.4, dampingFraction: 0.85), value: dragTranslation)
+    }
+
+    private func dragGesture(in geometry: GeometryProxy) -> some Gesture {
+        DragGesture()
+            .updating($dragTranslation) { value, state, _ in
+                state = value.translation.height
+            }
+            .onEnded { value in
+                let dy = value.predictedEndTranslation.height
+
+                // Dragging up enough closes the sheet
+                if dy <= -dismissThresholdUp {
+                    dismiss()
+                    return
+                }
+
+                // Snap logic between detents
+                switch currentDetent {
+                case .half:
+                    if dy > snapDragThreshold {
+                        currentDetent = .full
+                    } else {
+                        currentDetent = .half
+                    }
+                case .full:
+                    if dy < -snapDragThreshold {
+                        currentDetent = .half
+                    } else {
+                        currentDetent = .full
+                    }
+                }
+            }
+    }
+
+    private func sheetHeight(for detent: TopSheetDetent, container: CGSize) -> CGFloat {
+        switch detent {
+        case .half:
+            return container.height * 0.5
+        case .full:
+            return container.height * 0.92
+        }
+    }
+
+    private func dismiss() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            isPresented = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            onDismiss?()
+        }
+    }
+}
+
 // MARK: - Safe Collection Access
 
 private extension Collection {

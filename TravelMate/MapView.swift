@@ -12,10 +12,7 @@ struct IdentifiablePlace: Identifiable {
     }
 }
 
-// Payload to drive the top popover presentation.
-struct TopPopoverPayload: Identifiable {
-    let id = UUID()
-}
+ 
 
 // A simple class to hold map state that needs to be accessed directly, bypassing SwiftUI's state update cycle.
 class MapStateHolder: ObservableObject {
@@ -35,10 +32,9 @@ struct MapView: View {
     @State private var selectedMapFeature: MapFeature?
     @State private var mapSelection: MapSelection<MKMapItem>? = nil
     
-    // Popover state for the top-anchored popover presented from the Go button.
-    @State private var topPopoverItem: TopPopoverPayload?
-    // Track detent selection when the popover adapts to a sheet in compact environments.
-    @State private var topPopoverDetent: PresentationDetent = .fraction(0.25)
+    // State for the custom top-anchored sheet invoked by the Go button
+    @State private var showGoTopSheet: Bool = false
+    @State private var goTopSheetDetent: TopSheetDetent = .half
     
     @State private var isLocationSelected = false // Tracks if a location is selected in the main search
     @State private var isInitialLocationSet = false // Tracks if the map has centered on the initial location.
@@ -87,6 +83,19 @@ struct MapView: View {
              currentDetent: $sheetDetent,
              onDismiss: { sheetDetent = .half }) {
             locationDetailContent
+        }
+        .topSheet(isPresented: $showGoTopSheet, currentDetent: $goTopSheetDetent) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Placeholder content for Go panel
+                Text("Sample text")
+                    .font(.title2)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                Divider()
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
         }
         .onChange(of: routeViewModel.selectedRoute) { _, newSelectedRoute in
             handleAppleRouteChange(newSelectedRoute)
@@ -406,7 +415,7 @@ struct MapView: View {
                     .shadow(radius: 5, y: 3)
                     
                     // This is the "Directions/Go" button, separate from the TextField's internal buttons
-                    Button(action: { topPopoverItem = TopPopoverPayload() }) {
+                    Button(action: { showGoTopSheet = true }) {
                         ZStack {
                             Circle()
                                 .fill(Color.accentColor)
@@ -417,32 +426,6 @@ struct MapView: View {
                         }
                     }
                     .disabled(searchText.isEmpty || !isLocationSelected)
-                    // Top-anchored popover; adapts to a sheet on iPhone
-                    .popover(item: $topPopoverItem, attachmentAnchor: .rect(.bounds), arrowEdge: .top) { _ in
-                        // Placeholder content; to be filled later
-                        VStack(spacing: 8) {
-                            Text("Coming soon")
-                                .font(.headline)
-                            Text("We'll add content here next.")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(12)
-                        // Make the popover height follow the content
-                        .fixedSize(horizontal: false, vertical: true)
-                    }
-                    // Prefer a content-fitted popover where supported
-                    .presentationSizing(.fitted)
-                    .presentationCompactAdaptation(.popover)
-                    // When adapted to a sheet (iPhone), allow a very small detent
-                    .presentationDetents([.height(120), .fraction(0.25), .medium, .large], selection: $topPopoverDetent)
-                    .presentationDragIndicator(.visible)
-                    // If the sheet (compact adaptation) is dragged up to medium/large, auto-dismiss.
-                    .onChange(of: topPopoverDetent) { _, newDetent in
-                        if newDetent == .medium || newDetent == .large {
-                            topPopoverItem = nil
-                        }
-                    }
                 }
                 .padding(.horizontal).padding(.top)
 
@@ -708,59 +691,84 @@ struct MapView: View {
 }
 
 #if DEBUG
-struct GoPopoverSizing_Previews: PreviewProvider {
+struct TopSheetSizing_Previews: PreviewProvider {
     struct Demo: View {
-        @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 22.326, longitude: 114.177),
-            span: .init(latitudeDelta: 0.03, longitudeDelta: 0.03)))
-        @State private var topPopoverItem: TopPopoverPayload? = TopPopoverPayload()
-        @State private var topPopoverDetent: PresentationDetent = .height(120)
+        @State private var showTopSheet: Bool = true
+        @State private var detent: TopSheetDetent = .half
 
         var body: some View {
-            ZStack(alignment: .topTrailing) {
-                // Map background matching the app
-                SwiftUIMap(
-                    mapItems: [],
-                    overlayPolyline: nil,
-                    highlightItem: nil,
-                    position: $position,
-                    onRegionChange: { _ in })
-                .ignoresSafeArea()
-
-                // Minimal Go button to present the popover
-                Button(action: { topPopoverItem = TopPopoverPayload() }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.accentColor)
-                            .frame(width: 36, height: 36)
-                        Image(systemName: "point.bottomleft.forward.to.point.topright.filled.scurvepath")
-                            .font(.system(size: 18))
-                            .foregroundColor(.white)
+            MapView()
+                .topSheet(isPresented: $showTopSheet, currentDetent: $detent) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Placeholder just under the dynamic island / status bar
+                        Text("Sample text")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                        Divider()
+                        Spacer()
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
                 }
-                .padding(16)
-                .popover(item: $topPopoverItem, attachmentAnchor: .rect(.bounds), arrowEdge: .top) { _ in
-                    VStack(spacing: 8) {
-                        Text("Coming soon")
-                            .font(.headline)
-                        Text("We'll add content here next.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(12)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                .presentationSizing(.fitted)
-                .presentationCompactAdaptation(.popover)
-                .presentationDetents([.height(120), .fraction(0.25), .medium, .large], selection: $topPopoverDetent)
-                .presentationDragIndicator(.visible)
-            }
-            .frame(height: 420)
         }
     }
 
     static var previews: some View {
         Demo()
+            .previewDisplayName("Top Sheet")
     }
 }
+struct BottomSheetSizing_Previews: PreviewProvider {
+    struct Demo: View {
+        @State private var showBottomSheet: Bool = true
+        @State private var detent: Detent = .half
+        @State private var previewSelectedTab: MapView.Tab = .map
+
+        @State private var appleParkItem: MKMapItem? = nil
+
+        private func fetchApplePark() {
+            var request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = "Apple Park Visitor Center"
+            request.resultTypes = .pointOfInterest
+            request.region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 37.3349, longitude: -122.0090),
+                span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+            )
+            MKLocalSearch(request: request).start { response, _ in
+                if let found = response?.mapItems.first {
+                    DispatchQueue.main.async { self.appleParkItem = found }
+                }
+            }
+        }
+
+        var body: some View {
+            MapView()
+                .onAppear { fetchApplePark() }
+                .bottomSheet(isPresented: $showBottomSheet, currentDetent: $detent) {
+                    Group {
+                        if let item = appleParkItem {
+                            LocationView(selectedTab: $previewSelectedTab, mapItem: item, mapFeature: nil)
+                                .environmentObject(RouteViewModel())
+                        } else {
+                            VStack(spacing: 8) {
+                                ProgressView()
+                                Text("Loading Apple Park…")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(16)
+                        }
+                    }
+                }
+        }
+    }
+
+    static var previews: some View {
+        Demo()
+            .previewDisplayName("Bottom Sheet")
+    }
+}
+
 #endif
