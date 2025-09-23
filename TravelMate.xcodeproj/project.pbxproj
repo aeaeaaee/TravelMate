@@ -6,6 +6,10 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		636189ED2E8335B800FA4AF4 /* Swift.gitignore in Resources */ = {isa = PBXBuildFile; fileRef = 636189EC2E8335AF00FA4AF4 /* Swift.gitignore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		181A29FB2DF5629100CA1A4A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,7 @@
 		181A29ED2DF5629000CA1A4A /* TravelMate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TravelMate.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		181A29FA2DF5629100CA1A4A /* TravelMateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TravelMateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		181A2A042DF5629100CA1A4A /* TravelMateUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TravelMateUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		636189EC2E8335AF00FA4AF4 /* Swift.gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = Swift.gitignore; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -82,6 +87,7 @@
 		181A29E42DF5629000CA1A4A = {
 			isa = PBXGroup;
 			children = (
+				636189EC2E8335AF00FA4AF4 /* Swift.gitignore */,
 				181A29EF2DF5629000CA1A4A /* TravelMate */,
 				181A29FD2DF5629100CA1A4A /* TravelMateTests */,
 				181A2A072DF5629100CA1A4A /* TravelMateUITests */,
@@ -212,6 +218,7 @@
 		181A29EB2DF5629000CA1A4A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				636189ED2E8335B800FA4AF4 /* Swift.gitignore in Resources */,
 			);
 		};
 		181A29F82DF5629100CA1A4A /* Resources */ = {
